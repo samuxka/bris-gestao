@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Linking,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
@@ -28,6 +29,8 @@ export default function Caixa() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<CashEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -54,6 +57,12 @@ export default function Caixa() {
   const totalIn = entries.filter((e) => e.type === 'in').reduce((s, e) => s + e.value, 0);
   const totalOut = entries.filter((e) => e.type === 'out').reduce((s, e) => s + e.value, 0);
   const balance = totalIn - totalOut;
+
+  const filteredEntries = entries.filter((e) => {
+    const matchesSearch = e.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterType === 'all' || e.type === filterType;
+    return matchesSearch && matchesFilter;
+  });
 
   const renderItem = ({ item }: { item: CashEntry }) => {
     const isOut = item.type === 'out';
@@ -124,7 +133,37 @@ export default function Caixa() {
 
       <Text style={styles.sectionTitle}>Histórico de Fluxo</Text>
 
-      {entries.length === 0 ? (
+      <View style={styles.searchRow}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Pesquisar transferências..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            filterType !== 'all' && styles.filterButtonActive
+          ]}
+          onPress={() => {
+            if (filterType === 'all') setFilterType('in');
+            else if (filterType === 'in') setFilterType('out');
+            else setFilterType('all');
+          }}
+        >
+          <Ionicons 
+            name={filterType === 'all' ? 'filter-outline' : filterType === 'in' ? 'arrow-down' : 'arrow-up'} 
+            size={20} 
+            color={filterType === 'all' ? colors.primary : '#FFF'} 
+          />
+        </TouchableOpacity>
+      </View>
+
+      {filteredEntries.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="cash-outline" size={64} color={colors.border} />
           <Text style={styles.emptyTitle}>Nenhum lançamento</Text>
@@ -132,7 +171,7 @@ export default function Caixa() {
         </View>
       ) : (
         <FlatList
-          data={entries}
+          data={filteredEntries}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -204,7 +243,44 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
     marginHorizontal: spacing.m,
+    marginBottom: spacing.s,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.m,
     marginBottom: spacing.m,
+    gap: spacing.s,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.m,
+    paddingHorizontal: spacing.m,
+    height: 44,
+    ...shadows.small,
+  },
+  searchIcon: {
+    marginRight: spacing.s,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: typography.fontFamily,
+    fontSize: 15,
+    color: colors.text,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    backgroundColor: colors.surface,
+    borderRadius: radius.m,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.small,
+  },
+  filterButtonActive: {
+    backgroundColor: colors.primary,
   },
   listContent: {
     paddingHorizontal: spacing.m,

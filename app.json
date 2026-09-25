@@ -3,6 +3,12 @@
     "name": "pastelaria",
     "slug": "pastelaria",
     "version": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/9c319881-41c6-4895-9647-be22b6d968d9"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pastelaria",
@@ -34,7 +40,10 @@
           "imageWidth": 76
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

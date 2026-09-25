@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
   Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -119,11 +119,12 @@ export default function AddCashflow() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAwareScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={styles.content}
+      enableOnAndroid={true}
+      extraScrollHeight={20}
     >
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Type Toggle */}
         <Text style={styles.label}>Tipo de lançamento</Text>
         <View style={styles.toggleRow}>
@@ -216,8 +217,7 @@ export default function AddCashflow() {
             </Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

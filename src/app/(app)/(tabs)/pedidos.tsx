@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,7 @@ interface Order {
 const STATUS_MAP = {
   done: { backgroundColor: colors.success, label: 'Feito' },
   pending: { backgroundColor: colors.warning, label: 'Pendente' },
-  unpaid: { backgroundColor: '#3B82F6', label: 'Falta Pagar' },
+  unpaid: { backgroundColor: colors.danger, label: 'Falta Pagar' },
   canceled: { backgroundColor: colors.danger, label: 'Cancelado' },
 };
 
@@ -35,6 +36,8 @@ export default function Pedidos() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'pending' | 'unpaid' | 'done' | 'canceled'>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -58,6 +61,30 @@ export default function Pedidos() {
     });
     return unsub;
   }, [user]);
+
+  const filteredOrders = orders.filter((o) => {
+    const searchString = (o.clientName || o.items || o.id).toLowerCase();
+    const matchesSearch = searchString.includes(searchQuery.toLowerCase());
+    const matchesFilter = filterType === 'all' || o.status === filterType;
+    return matchesSearch && matchesFilter;
+  });
+
+  const getFilterIcon = () => {
+    switch(filterType) {
+      case 'pending': return 'time-outline';
+      case 'unpaid': return 'cash-outline';
+      case 'done': return 'checkmark-outline';
+      case 'canceled': return 'close-outline';
+      default: return 'filter-outline';
+    }
+  };
+
+  const cycleFilter = () => {
+    const types: ('all' | 'pending' | 'unpaid' | 'done' | 'canceled')[] = ['all', 'pending', 'unpaid', 'done', 'canceled'];
+    const currentIndex = types.indexOf(filterType);
+    const nextIndex = (currentIndex + 1) % types.length;
+    setFilterType(types[nextIndex]);
+  };
 
   const renderItem = ({ item }: { item: Order }) => {
     const badge = STATUS_MAP[item.status] || STATUS_MAP['done'];
@@ -97,15 +124,41 @@ export default function Pedidos() {
 
   return (
     <View style={styles.container}>
-      {orders.length === 0 ? (
+      <View style={styles.searchRow}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Pesquisar pedidos..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            filterType !== 'all' && { backgroundColor: STATUS_MAP[filterType].backgroundColor }
+          ]}
+          onPress={cycleFilter}
+        >
+          <Ionicons 
+            name={getFilterIcon()} 
+            size={20} 
+            color={filterType === 'all' ? colors.primary : '#FFF'} 
+          />
+        </TouchableOpacity>
+      </View>
+
+      {filteredOrders.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="receipt-outline" size={64} color={colors.border} />
-          <Text style={styles.emptyTitle}>Nenhum pedido ainda</Text>
-          <Text style={styles.emptyText}>Use o botão + para criar um novo pedido</Text>
+          <Text style={styles.emptyTitle}>Nenhum pedido encontrado</Text>
+          <Text style={styles.emptyText}>Tente alterar os filtros ou pesquisar com outros termos</Text>
         </View>
       ) : (
         <FlatList
-          data={orders}
+          data={filteredOrders}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -124,6 +177,39 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    padding: spacing.m,
+    gap: spacing.s,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.m,
+    paddingHorizontal: spacing.m,
+    height: 44,
+    ...shadows.small,
+  },
+  searchIcon: {
+    marginRight: spacing.s,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: typography.fontFamily,
+    fontSize: 15,
+    color: colors.text,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    backgroundColor: colors.surface,
+    borderRadius: radius.m,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.small,
   },
   listContent: {
     padding: spacing.m,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -11,7 +11,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { authenticateWithBiometrics } = useAuth();
+  const { setBiometricsEnabled, biometricsEnabled } = useAuth();
   const [hasBiometrics, setHasBiometrics] = useState(false);
 
   useEffect(() => {
@@ -31,6 +31,22 @@ export default function Login() {
     setError('');
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Ask to enable biometrics if supported and not already enabled
+      if (hasBiometrics && !biometricsEnabled) {
+        Alert.alert(
+          'Ativar Biometria',
+          'Deseja usar a biometria para entrar mais rapidamente nas próximas vezes?',
+          [
+            { text: 'Não', style: 'cancel' },
+            { 
+              text: 'Sim', 
+              onPress: async () => {
+                await setBiometricsEnabled(true);
+              } 
+            }
+          ]
+        );
+      }
     } catch (err: any) {
       console.error(err);
       setError('Credenciais inválidas.');
@@ -39,17 +55,7 @@ export default function Login() {
     }
   };
 
-  const handleBiometricLogin = async () => {
-    const success = await authenticateWithBiometrics();
-    if (success) {
-      // In a real app with Expo LocalAuth without a persistent session token,
-      // You might store the email/pass securely in SecureStore and use it here.
-      // For this demo, if biometrics succeed, we assume they are already logged in via Firebase
-      // But if Firebase is logged out, biometrics alone can't log them in unless we stored credentials.
-      // We will show a message if they are logged out of Firebase.
-      setError('Biometria reconhecida. Faça login com senha na primeira vez.');
-    }
-  };
+
 
   return (
     <KeyboardAvoidingView 
@@ -94,15 +100,6 @@ export default function Login() {
               <Text style={styles.primaryButtonText}>Entrar</Text>
             )}
           </TouchableOpacity>
-
-          {hasBiometrics && (
-            <TouchableOpacity 
-              style={styles.secondaryButton} 
-              onPress={handleBiometricLogin}
-            >
-              <Text style={styles.secondaryButtonText}>Entrar com Biometria</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -8,7 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isUnlocked, biometricsEnabled } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -32,11 +32,21 @@ function RootLayoutNav() {
     if (!user && !inAuthGroup) {
       // Redirect to the login page.
       router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      // Redirect away from the login page.
-      router.replace('/(app)/(tabs)');
+    } else if (user) {
+      if (!isUnlocked && biometricsEnabled) {
+        // Redirect to unlock screen if biometrics are enabled and app is locked
+        if (segments[1] !== 'unlock') {
+          router.replace('/(auth)/unlock');
+        }
+      } else if (inAuthGroup && segments[1] !== 'unlock') {
+        // Redirect away from login/auth pages to the main app
+        router.replace('/(app)/(tabs)');
+      } else if (isUnlocked && segments[1] === 'unlock') {
+        // If unlocked but still on unlock screen, go to app
+        router.replace('/(app)/(tabs)');
+      }
     }
-  }, [user, isLoading, fontsLoaded, segments]);
+  }, [user, isLoading, fontsLoaded, segments, isUnlocked, biometricsEnabled]);
 
   if (!fontsLoaded || isLoading) {
     return null;

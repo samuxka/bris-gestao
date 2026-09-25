@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -91,11 +91,12 @@ export default function AddOrder() {
   const total = getTotal();
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAwareScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={styles.content}
+      enableOnAndroid={true}
+      extraScrollHeight={20}
     >
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Client */}
         <Text style={styles.label}>Nome do cliente (opcional)</Text>
         <TextInput
@@ -177,8 +178,7 @@ export default function AddOrder() {
           )}
         </TouchableOpacity>
         <View style={{ height: 40 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

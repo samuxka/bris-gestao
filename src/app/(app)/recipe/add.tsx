@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -98,11 +99,12 @@ export default function AddRecipe() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAwareScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={styles.content}
+      enableOnAndroid={true}
+      extraScrollHeight={20}
     >
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Name */}
         <Text style={styles.label}>Nome da receita *</Text>
         <TextInput
@@ -176,8 +178,7 @@ export default function AddRecipe() {
           )}
         </TouchableOpacity>
         <View style={{ height: 40 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

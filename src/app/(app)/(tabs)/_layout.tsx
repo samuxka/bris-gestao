@@ -9,6 +9,7 @@ export default function TabsLayout() {
     <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
+          tabBarShowLabel: false,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
           tabBarStyle: {
@@ -50,10 +51,10 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="receitas"
+          name="ferramentas"
           options={{
-            title: 'Receitas',
-            tabBarIcon: ({ color }) => <Ionicons name="book" size={24} color={color} />,
+            title: 'Ferramentas',
+            tabBarIcon: ({ color }) => <Ionicons name="ellipsis-horizontal" size={24} color={color} />,
           }}
         />
       </Tabs>

@@ -13,8 +13,10 @@ import { colors, typography, spacing, radius, shadows } from '../theme/theme';
 
 const ACTIONS = [
   { label: 'Nova transferência', icon: 'swap-horizontal', route: '/cashflow/add' },
+  { label: 'Novo produto', icon: 'cube', route: '/inventario/add' },
   { label: 'Novo pedido', icon: 'receipt', route: '/order/add' },
   { label: 'Nova receita', icon: 'book', route: '/recipe/add' },
+  { label: 'Nova lista', icon: 'cart', route: '/lista-compras/add' },
 ];
 
 export default function FAB() {

@@ -3,13 +3,18 @@ import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/a
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   userName: string;
   isBiometricAuthenticated: boolean;
+  isUnlocked: boolean;
+  biometricsEnabled: boolean;
   authenticateWithBiometrics: () => Promise<boolean>;
+  setBiometricsEnabled: (enabled: boolean) => Promise<void>;
+  unlockApp: () => Promise<boolean>;
   updateUserName: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -23,12 +28,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [isBiometricAuthenticated, setIsBiometricAuthenticated] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [biometricsEnabled, setBiometricsState] = useState(false);
 
   useEffect(() => {
+    const loadSettings = async () => {
+      const stored = await SecureStore.getItemAsync('biometricsEnabled');
+      setBiometricsState(stored === 'true');
+      return stored === 'true';
+    };
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      const isBioEnabled = await loadSettings();
 
       if (firebaseUser) {
+        if (!isBioEnabled) {
+          setIsUnlocked(true); // Auto unlock if biometrics not required
+        } else {
+          setIsUnlocked(false); // Require unlock screen
+        }
         // Load user profile from Firestore
         try {
           const docRef = doc(db, 'users', firebaseUser.uid);
@@ -43,6 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setUserName('');
         setIsBiometricAuthenticated(false);
+        setIsUnlocked(false);
       }
 
       setIsLoading(false);
@@ -85,10 +105,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const unlockApp = async () => {
+    const success = await authenticateWithBiometrics();
+    if (success) {
+      setIsUnlocked(true);
+    }
+    return success;
+  };
+
+  const setBiometricsEnabled = async (enabled: boolean) => {
+    await SecureStore.setItemAsync('biometricsEnabled', enabled ? 'true' : 'false');
+    setBiometricsState(enabled);
+  };
+
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
       setIsBiometricAuthenticated(false);
+      setIsUnlocked(false);
     } catch (error) {
       console.error('Sign out error', error);
     }
@@ -101,7 +135,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isLoading,
         userName,
         isBiometricAuthenticated,
+        isUnlocked,
+        biometricsEnabled,
         authenticateWithBiometrics,
+        setBiometricsEnabled,
+        unlockApp,
         updateUserName,
         signOut,
       }}

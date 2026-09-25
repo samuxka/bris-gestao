@@ -10,9 +10,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
-import { useAuth } from '../../../context/AuthContext';
-import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { db } from '../../config/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { colors, typography, spacing, radius, shadows } from '../../theme/theme';
 
 interface Recipe {
   id: string;

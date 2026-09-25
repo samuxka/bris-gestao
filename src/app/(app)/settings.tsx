@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme/theme';
 
 export default function Settings() {
-  const { signOut, user, userName, updateUserName } = useAuth();
+  const { signOut, user, userName, updateUserName, biometricsEnabled, setBiometricsEnabled } = useAuth();
   const [name, setName] = useState(userName);
   const [saving, setSaving] = useState(false);
 
@@ -60,8 +61,22 @@ export default function Settings() {
 
       <Text style={styles.sectionLabel}>Conta</Text>
       <View style={styles.card}>
-        <Text style={styles.inputLabel}>Email</Text>
-        <Text style={styles.emailText}>{user?.email}</Text>
+        <View style={styles.settingRow}>
+          <Text style={styles.inputLabel}>Email</Text>
+          <Text style={styles.emailText}>{user?.email}</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={[styles.settingRow, { alignItems: 'center' }]}>
+          <View>
+            <Text style={styles.settingTitle}>Desbloqueio Biométrico</Text>
+            <Text style={styles.settingDesc}>Pedir impressão digital/Face ID ao abrir a app</Text>
+          </View>
+          <Switch
+            value={biometricsEnabled}
+            onValueChange={setBiometricsEnabled}
+            trackColor={{ false: colors.border, true: colors.primary }}
+          />
+        </View>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
@@ -125,6 +140,27 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilyMedium,
     fontSize: 16,
     color: colors.text,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.s,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.s,
+  },
+  settingTitle: {
+    fontFamily: typography.fontFamilyMedium,
+    fontSize: 15,
+    color: colors.text,
+  },
+  settingDesc: {
+    fontFamily: typography.fontFamily,
+    fontSize: 12,
+    color: colors.textSecondary,
+    maxWidth: 220,
   },
   logoutButton: {
     marginTop: spacing.l,
