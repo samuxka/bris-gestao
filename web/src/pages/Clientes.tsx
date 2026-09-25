@@ -75,7 +75,7 @@ export default function Clientes() {
     if (!user) return;
     const q = query(collection(db, 'clients'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       // Sort alphabetically by name
       docs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setClients(docs);

@@ -256,7 +256,7 @@ export default function Dashboard() {
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
                     itemStyle={{ color: '#0f172a' }}
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: any) => formatCurrency(Number(value))}
                   />
                   <Legend />
                   <Area type="monotone" dataKey="entradas" stroke="#10b981" fillOpacity={0.15} fill="#10b981" name="Entradas" />

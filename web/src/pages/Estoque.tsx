@@ -30,7 +30,7 @@ export default function Estoque() {
     if (!user) return;
     const q = query(collection(db, 'inventory'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       docs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setItems(docs);
       setLoading(false);
@@ -184,7 +184,7 @@ export default function Estoque() {
                       <td style={{ padding: '16px 12px', fontWeight: 500 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           {item.name}
-                          {isLowStock && <AlertTriangle size={16} color="var(--danger-color)" title="Estoque Baixo" />}
+                          {isLowStock && <span title="Estoque Baixo"><AlertTriangle size={16} color="var(--danger-color)" /></span>}
                         </div>
                       </td>
                       <td style={{ padding: '16px 12px' }}>
