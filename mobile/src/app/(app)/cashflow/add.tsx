@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ScrollView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
@@ -23,14 +24,23 @@ import { colors, typography, spacing, radius, shadows } from '../../../theme/the
 
 type TransferType = 'in' | 'out';
 
+const EXPENSE_CATEGORIES = ['Material', 'Equipamento', 'Salário', 'Impostos', 'Marketing', 'Outros'];
+const INCOME_CATEGORIES = ['Venda', 'Investimento', 'Outros'];
+
 export default function AddCashflow() {
   const router = useRouter();
   const { user } = useAuth();
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
   const [type, setType] = useState<TransferType>('in');
+  const [category, setCategory] = useState('Venda');
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (type === 'in' && !INCOME_CATEGORIES.includes(category)) setCategory('Venda');
+    if (type === 'out' && !EXPENSE_CATEGORIES.includes(category)) setCategory('Material');
+  }, [type]);
 
   const pickImage = () => {
     Alert.alert('Anexar Comprovativo', 'Escolha a origem da imagem', [
@@ -105,6 +115,7 @@ export default function AddCashflow() {
         userId: user!.uid,
         description: description.trim(),
         type,
+        category,
         value: numValue,
         receiptUrls,
         createdAt: serverTimestamp(),
@@ -155,6 +166,23 @@ export default function AddCashflow() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Category */}
+        <Text style={styles.label}>Categoria</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.m }}>
+          {(type === 'in' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (
+            <TouchableOpacity 
+              key={cat} 
+              style={[
+                styles.categoryPill, 
+                category === cat && styles.categoryPillActive
+              ]}
+              onPress={() => setCategory(cat)}
+            >
+              <Text style={[styles.categoryText, category === cat && styles.categoryTextActive]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* Value */}
         <Text style={styles.label}>Valor (€)</Text>
@@ -348,5 +376,26 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilyBold,
     color: colors.surface,
     fontSize: 16,
+  },
+  categoryPill: {
+    paddingHorizontal: spacing.m,
+    paddingVertical: spacing.s,
+    borderRadius: radius.l,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: spacing.s,
+  },
+  categoryPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryText: {
+    fontFamily: typography.fontFamilyMedium,
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  categoryTextActive: {
+    color: colors.surface,
   },
 });

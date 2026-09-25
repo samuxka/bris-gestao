@@ -77,7 +77,7 @@ export default function OrderDetails() {
                 // Add the value to the balance (cashflow) automatically
                 await addDoc(collection(db, 'cashflow'), {
                   userId: user.uid,
-                  description: `Pedido #${order.id.slice(-4).toUpperCase()}`,
+                  description: `Pagamento - ${order.clientName || 'Cliente'}`,
                   type: 'in',
                   value: order.total,
                   createdAt: serverTimestamp(),
