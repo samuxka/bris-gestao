@@ -73,12 +73,12 @@ export default function ClienteDetail() {
 
   const sendAlertEmail = async () => {
     // Configurações do EmailJS (Esses valores precisam ser preenchidos pelo dono no site do emailjs.com)
-    const serviceId = 'YOUR_SERVICE_ID';
-    const templateId = 'YOUR_TEMPLATE_ID';
-    const publicKey = 'YOUR_PUBLIC_KEY';
+    const serviceId = import.meta.env.VITE_SERVICE_ID;
+    const templateId = import.meta.env.VITE_TEMPLATE_ID;
+    const publicKey = import.meta.env.VITE_PUBLIC_KEY;
     
-    if (serviceId === 'YOUR_SERVICE_ID') {
-      showAlert('Você precisa configurar as credenciais do EmailJS no código fonte (ClienteDetail.tsx) para enviar emails.', 'Configuração Necessária', 'warning');
+    if (!serviceId || !templateId || !publicKey) {
+      showAlert('Você precisa configurar as credenciais do EmailJS no arquivo .env (VITE_SERVICE_ID, etc) para enviar emails.', 'Configuração Necessária', 'warning');
       return;
     }
 

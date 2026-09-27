@@ -1,266 +1,291 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, ArrowRight, ArrowLeft } from 'lucide-react';
+
+import { ArrowUpRight, ArrowDownRight, Gift, AlertCircle, Calendar as CalendarIcon, Clock } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { format, subMonths, subDays, isSameMonth, startOfDay } from 'date-fns';
+import { format, subDays, isSameMonth, startOfDay, isSameDay, isSameYear, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const StatCard = ({ title, value, trend, trendValue }: { title: string, value: string, trend: 'up' | 'down', trendValue: string }) => (
+const StatCard = ({ title, value, trend, trendValue }: { title: string, value: string, trend?: 'up' | 'down' | 'neutral', trendValue?: string }) => (
   <div className="card stat-card">
     <h3 className="card-title">{title}</h3>
     <div className="stat-value">{value}</div>
-    <div className="stat-trend">
-      {trend === 'up' ? (
-        <span className="trend-up"><ArrowUpRight size={16} /> {trendValue}</span>
-      ) : (
-        <span className="trend-down"><ArrowDownRight size={16} /> {trendValue}</span>
-      )}
-      <span className="trend-label">em relação ao mês passado</span>
-    </div>
+    {trendValue && (
+      <div className="stat-trend">
+        {trend === 'up' ? (
+          <span className="trend-up"><ArrowUpRight size={16} /> {trendValue}</span>
+        ) : trend === 'down' ? (
+          <span className="trend-down"><ArrowDownRight size={16} /> {trendValue}</span>
+        ) : (
+          <span style={{ color: 'var(--text-secondary)' }}>{trendValue}</span>
+        )}
+      </div>
+    )}
   </div>
 );
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { showAlert, showPrompt } = useAlert();
-  const [transfers, setTransfers] = useState<any[]>([]);
+  const { showAlert, showPrompt, showConfirm } = useAlert();
   const [loading, setLoading] = useState(true);
 
-  // Stats
-  const [dinheiroCaixa, setDinheiroCaixa] = useState(0);
-  const [entradasMes, setEntradasMes] = useState(0);
-  const [despesasMes, setDespesasMes] = useState(0);
-  
-  const [entradasMesAnterior, setEntradasMesAnterior] = useState(0);
-  const [despesasMesAnterior, setDespesasMesAnterior] = useState(0);
-  const [caixaMesAnterior, setCaixaMesAnterior] = useState(0);
+  // Filter
+  const [period, setPeriod] = useState<'day' | 'month' | 'year' | 'all'>('month');
 
+  // Stats Data
+  const [receita, setReceita] = useState(0);
+  const [despesas, setDespesas] = useState(0);
+  const [lucro, setLucro] = useState(0);
+  const [aReceber, setAReceber] = useState(0);
   const [chartData, setChartData] = useState<any[]>([]);
-  const [topCustomers, setTopCustomers] = useState<{name: string, total: number}[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
-  const [caixinhas, setCaixinhas] = useState<any[]>([]);
+
+  // Outros dados
+  const [topCustomers, setTopCustomers] = useState<any[]>([]);
+  const [crmData, setCrmData] = useState<{name: string, reason: string, type: 'unpaid' | 'gift' | 'away'}[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
+  
+  const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'events'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setEvents(docs);
-    });
-    return unsub;
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'caixinhas'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a: any, b: any) => {
-        const tA = a.createdAt?.toMillis?.() || 0;
-        const tB = b.createdAt?.toMillis?.() || 0;
-        return tA - tB;
-      });
-      setCaixinhas(docs);
-    });
-    return unsub;
-  }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    const qOrders = query(
-      collection(db, 'orders'),
-      where('userId', '==', user.uid)
-    );
+    
+    // 1. Fetch Orders para CRM e "A Receber"
+    const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
-      const customersMap: Record<string, number> = {};
-      snap.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.status === 'canceled' || data.status === 'unpaid') return;
-        const cName = data.clientName?.trim();
-        if (cName && cName.toLowerCase() !== 'cliente' && !cName.toLowerCase().startsWith('mesa')) {
-          customersMap[cName] = (customersMap[cName] || 0) + (data.total || 0);
+      const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      
+      let totalUnpaid = 0;
+      const clientStats: Record<string, { done: number, unpaid: number, lastDate: Date, total: number, id: string }> = {};
+
+      docs.forEach(doc => {
+        const status = doc.status;
+        const total = Number(doc.total) || 0;
+        const dateObj = doc.createdAt?.toDate?.() || new Date();
+        const cName = doc.clientName?.trim() || 'Desconhecido';
+        const isMesa = cName.toLowerCase().startsWith('mesa') || cName.toLowerCase() === 'cliente';
+
+        if (status === 'unpaid') {
+          totalUnpaid += total;
+        }
+
+        if (!isMesa) {
+          if (!clientStats[cName]) clientStats[cName] = { done: 0, unpaid: 0, lastDate: dateObj, total: 0, id: '' };
+          if (status === 'unpaid') clientStats[cName].unpaid += 1;
+          if (status === 'done') {
+            clientStats[cName].done += 1;
+            clientStats[cName].total += total;
+          }
+          if (dateObj > clientStats[cName].lastDate) {
+            clientStats[cName].lastDate = dateObj;
+          }
         }
       });
-      const customersList = Object.keys(customersMap).map(k => ({ name: k, total: customersMap[k] }));
+
+      setAReceber(totalUnpaid);
+
+      // Top Customers
+      const customersList = Object.keys(clientStats).map(k => ({ name: k, ...clientStats[k] }));
       customersList.sort((a, b) => b.total - a.total);
       setTopCustomers(customersList.slice(0, 5));
-    });
-    return unsubOrders;
-  }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    
-    const q = query(
-      collection(db, 'cashflow'),
-      where('userId', '==', user.uid)
-    );
-    
-    const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      docs.sort((a: any, b: any) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
-
-      setTransfers(docs);
-
+      // CRM Insights
+      const insights: {name: string, reason: string, type: 'unpaid' | 'gift' | 'away'}[] = [];
       const now = new Date();
-      const lastMonth = subMonths(now, 1);
+      Object.keys(clientStats).forEach(name => {
+        const st = clientStats[name];
+        if (st.unpaid > 0) {
+          insights.push({ name, reason: `Tem ${st.unpaid} pedido(s) não pago(s)`, type: 'unpaid' });
+        }
+        if (st.done > 0 && st.done % 10 === 9) {
+          insights.push({ name, reason: `Falta 1 pedido para ganhar o brinde`, type: 'gift' });
+        }
+        if (differenceInDays(now, st.lastDate) > 30) {
+          insights.push({ name, reason: `Não compra há ${differenceInDays(now, st.lastDate)} dias`, type: 'away' });
+        }
+      });
+      setCrmData(insights);
+    });
 
-      let caixaAtual = 0;
-      let entradasAtual = 0;
-      let despesasAtual = 0;
+    // 2. Fetch Cashflow para Receitas, Despesas, Lucro e Gráfico
+    const qCashflow = query(collection(db, 'cashflow'), where('userId', '==', user.uid));
+    const unsubCashflow = onSnapshot(qCashflow, (snap) => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      const now = new Date();
+      
+      let calcReceita = 0;
+      let calcDespesa = 0;
+      const dailyMap: Record<string, { dateObj: Date, entradas: number, saidas: number }> = {};
 
-      let entradasPassadas = 0;
-      let despesasPassadas = 0;
-
-      const dailyData: Record<string, { name: string, dateObj: Date, entradas: number, saidas: number }> = {};
-
-      docs.forEach((t: any) => {
+      docs.forEach(t => {
         const val = Number(t.value) || 0;
         const isIncome = t.type === 'in';
+        const dateObj = t.createdAt?.toDate?.() || new Date();
         
-        const date = t.createdAt?.toDate?.() || new Date();
-        const dayKey = format(date, 'dd MMM', { locale: ptBR });
-        
-        if (!dailyData[dayKey]) {
-          dailyData[dayKey] = { name: dayKey, dateObj: startOfDay(date), entradas: 0, saidas: 0 };
+        let include = false;
+        if (period === 'day') include = isSameDay(dateObj, now);
+        else if (period === 'month') include = isSameMonth(dateObj, now);
+        else if (period === 'year') include = isSameYear(dateObj, now);
+        else include = true; // all
+
+        if (include) {
+          if (isIncome) calcReceita += val;
+          else calcDespesa += val;
         }
-        
-        if (isIncome) {
-          caixaAtual += val;
-          dailyData[dayKey].entradas += val;
-          if (isSameMonth(date, now)) entradasAtual += val;
-          else if (isSameMonth(date, lastMonth)) entradasPassadas += val;
-        } else {
-          caixaAtual -= val;
-          dailyData[dayKey].saidas += val;
-          if (isSameMonth(date, now)) despesasAtual += val;
-          else if (isSameMonth(date, lastMonth)) despesasPassadas += val;
+
+        // Gráfico sempre por dia (dentro do período selecionado)
+        if (include || period === 'all') { // se for all, mostra os ultimos 30 dias no grafico por padrão ou agrupa por mes? vamos manter diário pra manter simples, mas se for year pode ficar grande. Vamos deixar diário se incluir
+           const dayKey = format(dateObj, 'yyyy-MM-dd');
+           if (!dailyMap[dayKey]) dailyMap[dayKey] = { dateObj: startOfDay(dateObj), entradas: 0, saidas: 0 };
+           if (isIncome) dailyMap[dayKey].entradas += val;
+           else dailyMap[dayKey].saidas += val;
         }
       });
 
-      const caixaPassado = caixaAtual - entradasAtual + despesasAtual;
+      setReceita(calcReceita);
+      setDespesas(calcDespesa);
+      setLucro(calcReceita - calcDespesa);
 
-      setDinheiroCaixa(caixaAtual);
-      setEntradasMes(entradasAtual);
-      setDespesasMes(despesasAtual);
+      let chartArr = Object.values(dailyMap).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
       
-      setEntradasMesAnterior(entradasPassadas);
-      setDespesasMesAnterior(despesasPassadas);
-      setCaixaMesAnterior(caixaPassado);
+      // Filtrar array do grafico se o periodo for muito longo, ou apenas renderizar
+      if (period === 'all' && chartArr.length > 30) {
+        chartArr = chartArr.slice(-30); // ultimos 30 dias ativos
+      }
 
-      const chartArr = Object.values(dailyData).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-      
-      // Se houver apenas 1 dia com dados, o AreaChart não renderiza a área (precisa de 2 pontos).
-      // Vamos adicionar um ponto "fictício" do dia anterior com valores 0.
-      if (chartArr.length === 1) {
-        const prevDayDate = subDays(chartArr[0].dateObj, 1);
-        chartArr.unshift({
-          name: format(prevDayDate, 'dd MMM', { locale: ptBR }),
-          dateObj: prevDayDate,
+      const formattedChart = chartArr.map(c => ({
+        name: format(c.dateObj, 'dd MMM', { locale: ptBR }),
+        entradas: c.entradas,
+        saidas: c.saidas
+      }));
+
+      // Placeholder point if only 1 day
+      if (formattedChart.length === 1) {
+        const prev = subDays(chartArr[0].dateObj, 1);
+        formattedChart.unshift({
+          name: format(prev, 'dd MMM', { locale: ptBR }),
           entradas: 0,
           saidas: 0
         });
       }
 
-      setChartData(chartArr);
-
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
+      setChartData(formattedChart);
       setLoading(false);
     });
-    
-    return unsub;
-  }, [user]);
 
-  const calcTrend = (current: number, past: number) => {
-    if (Math.abs(past) < 0.01) {
-      if (current > 0.01) return { trend: 'up' as const, value: '+100,00%' };
-      if (current < -0.01) return { trend: 'down' as const, value: '-100,00%' };
-      return { trend: 'up' as const, value: '0,00%' };
-    }
-    const percent = ((current - past) / Math.abs(past)) * 100;
-    const formattedPercent = Math.abs(percent).toLocaleString('pt-PT', { 
-      minimumFractionDigits: 0, 
-      maximumFractionDigits: 2 
-    }) + '%';
-    return {
-      trend: percent >= 0 ? 'up' as const : 'down' as const,
-      value: `${percent >= 0 ? '+' : '-'}${formattedPercent}`
+    // 3. Fetch Contas a Pagar
+    const qBills = query(collection(db, 'billsToPay'), where('userId', '==', user.uid));
+    const unsubBills = onSnapshot(qBills, (snap) => {
+      const b = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+      b.sort((x: any, y: any) => (x.dueDate?.toDate?.()?.getTime() || 0) - (y.dueDate?.toDate?.()?.getTime() || 0));
+      setBills(b);
+    });
+
+    return () => {
+      unsubOrders();
+      unsubCashflow();
+      unsubBills();
     };
+  }, [user, period]);
+
+  const handleAddBill = () => {
+    showPrompt('Qual o nome da conta a pagar?', '', (name) => {
+      if (!name) return;
+      showPrompt('Qual o valor da conta? (ex: 50.00)', '', async (amount) => {
+        const val = parseFloat(amount.replace(',', '.'));
+        if (isNaN(val) || val <= 0) return showAlert('Valor inválido', 'Erro', 'error');
+        try {
+          await addDoc(collection(db, 'billsToPay'), {
+            userId: user?.uid,
+            title: name,
+            amount: val,
+            dueDate: serverTimestamp(), // Padrão agora
+            isPaid: false
+          });
+          showAlert('Conta adicionada com sucesso!', 'Sucesso', 'success');
+        } catch (e) {
+          showAlert('Erro ao adicionar', 'Erro', 'error');
+        }
+      }, 'Valor da Conta');
+    }, 'Nova Conta');
   };
 
-  const trendCaixa = calcTrend(dinheiroCaixa, caixaMesAnterior);
-  const trendEntradas = calcTrend(entradasMes, entradasMesAnterior);
-  const trendDespesas = calcTrend(despesasMes, despesasMesAnterior);
-
-  const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
-
-  const handleAddMoneyToCaixinha = (caixinha: any) => {
-    showPrompt(`Quanto deseja depositar na caixinha "${caixinha.name}"?`, '', async (amountStr) => {
-      if (!amountStr) return;
-      const amount = parseFloat(amountStr.replace(',', '.'));
-      if (isNaN(amount) || amount <= 0) return showAlert('Valor inválido', 'Erro', 'error');
-
+  const handlePayBill = (id: string, title: string, amount: number) => {
+    showConfirm(`Deseja marcar "${title}" como pago? (Isso também registrará a saída no caixa automaticamente)`, async () => {
       try {
-        const caixinhaRef = doc(db, 'caixinhas', caixinha.id);
-        await updateDoc(caixinhaRef, {
-          current: (Number(caixinha.current) || 0) + amount
+        await deleteDoc(doc(db, 'billsToPay', id));
+        // Registra despesa
+        await addDoc(collection(db, 'cashflow'), {
+          userId: user?.uid,
+          type: 'out',
+          value: amount,
+          description: `Pagamento de Conta: ${title}`,
+          createdAt: serverTimestamp()
         });
-        showAlert('Valor depositado com sucesso!', 'Sucesso', 'success');
+        showAlert('Conta paga!', 'Sucesso', 'success');
       } catch(e) {
-        console.error(e);
-        showAlert('Erro ao depositar valor.', 'Erro', 'error');
+        showAlert('Erro ao pagar conta', 'Erro', 'error');
       }
-    }, 'Depositar');
+    }, 'Pagar Conta');
   };
-
-  const now = startOfDay(new Date());
-  const upcomingEvents = events
-    .filter(ev => ev.date && ev.date.toDate() >= now)
-    .sort((a, b) => a.date.toDate().getTime() - b.date.toDate().getTime())
-    .slice(0, 3);
 
   return (
     <div>
-      <div className="page-header">
-        <h2 className="page-title">Visão Geral</h2>
-        <p className="page-subtitle">Acompanhe os principais indicadores da pastelaria.</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 className="page-title">Visão Geral</h2>
+          <p className="page-subtitle">Acompanhe os principais indicadores da pastelaria.</p>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <CalendarIcon size={18} color="var(--text-secondary)" />
+          <select 
+            className="filter-select"
+            value={period} 
+            onChange={(e) => setPeriod(e.target.value as any)}
+          >
+            <option value="day">Hoje</option>
+            <option value="month">Este Mês</option>
+            <option value="year">Este Ano</option>
+            <option value="all">Todo Período</option>
+          </select>
+        </div>
       </div>
 
       <div className="dashboard-grid">
+        {/* Top Cards */}
         <StatCard
-          title="Dinheiro no Caixa (Geral)"
-          value={formatCurrency(dinheiroCaixa)}
-          trend={trendCaixa.trend}
-          trendValue={trendCaixa.value}
+          title="Receita"
+          value={formatCurrency(receita)}
+          trend="neutral"
+          trendValue={period === 'all' ? 'Total histórico' : `No período (${period})`}
         />
         <StatCard
-          title="Despesas (Este Mês)"
-          value={formatCurrency(despesasMes)}
-          trend={trendDespesas.trend === 'up' ? 'down' : 'up'}
-          trendValue={trendDespesas.value}
+          title="Despesas"
+          value={formatCurrency(despesas)}
+          trend="neutral"
+          trendValue={period === 'all' ? 'Total histórico' : `No período (${period})`}
         />
         <StatCard
-          title="Dinheiro que Entrou (Este Mês)"
-          value={formatCurrency(entradasMes)}
-          trend={trendEntradas.trend}
-          trendValue={trendEntradas.value}
+          title="Lucro"
+          value={formatCurrency(lucro)}
+          trend={lucro > 0 ? 'up' : lucro < 0 ? 'down' : 'neutral'}
+          trendValue={lucro >= 0 ? 'Positivo' : 'Negativo'}
+        />
+        <StatCard
+          title="A Receber"
+          value={formatCurrency(aReceber)}
+          trend="neutral"
+          trendValue="Pedidos não pagos"
         />
 
+        {/* Gráfico */}
         <div className="card chart-card">
-          <h3 className="card-title">Fluxo de Caixa Diário (Entradas vs Saídas)</h3>
+          <h3 className="card-title">Fluxo de Caixa (Entradas vs Saídas)</h3>
           <div className="chart-container">
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -269,164 +294,91 @@ export default function Dashboard() {
                   <YAxis stroke="#64748b" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#0f172a' }}
-                    itemStyle={{ color: '#0f172a' }}
+                    contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    itemStyle={{ color: 'var(--text-primary)' }}
                     formatter={(value: any) => formatCurrency(Number(value))}
                   />
                   <Legend />
-                  <Area type="monotone" dataKey="entradas" stroke="#10b981" fillOpacity={0.15} fill="#10b981" name="Entradas" />
-                  <Area type="monotone" dataKey="saidas" stroke="#ef4444" fillOpacity={0.15} fill="#ef4444" name="Saídas" />
+                  <Area type="monotone" dataKey="entradas" stroke="#10b981" fillOpacity={0.15} fill="#10b981" name="Receita" />
+                  <Area type="monotone" dataKey="saidas" stroke="#ef4444" fillOpacity={0.15} fill="#ef4444" name="Despesas" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-                {loading ? 'Carregando gráfico...' : 'Sem dados suficientes para o gráfico.'}
+                {loading ? 'Carregando gráfico...' : 'Sem dados suficientes para o gráfico no período.'}
               </div>
             )}
           </div>
         </div>
 
-        <div className="card caixinhas-card">
-          <h3 className="card-title">Objetivos (Caixinhas)</h3>
-          <div className="caixinhas-list">
-            {caixinhas.length > 0 ? caixinhas.map((caixinha, idx) => {
-              const target = Number(caixinha.target) || 0;
-              const current = Number(caixinha.current) || 0;
-              const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-              return (
-                <div key={caixinha.id || idx} className="caixinha-item">
-                  <div className="caixinha-header">
-                    <span className="caixinha-name">{caixinha.name}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="caixinha-value">€ {current.toFixed(2).replace('.', ',')} / € {target.toFixed(2).replace('.', ',')}</span>
-                      <button 
-                        className="btn-secondary" 
-                        style={{ padding: '2px 6px', fontSize: '12px', minWidth: 'auto', border: '1px solid var(--accent-color)', color: 'var(--accent-color)' }} 
-                        onClick={() => handleAddMoneyToCaixinha(caixinha)}
-                        title="Depositar"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                  <div className="progress-bar-bg">
-                    <div className="progress-bar-fill" style={{ width: `${percent}%` }}></div>
-                  </div>
+        {/* Contas a Pagar */}
+        <div className="card" style={{ gridColumn: 'span 4' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>Contas a Pagar</h3>
+            <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={handleAddBill}>
+              + Nova Conta
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+            {bills.length > 0 ? bills.map(b => (
+              <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px' }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{b.title}</h4>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--danger-color)', fontWeight: 'bold' }}>{formatCurrency(Number(b.amount))}</p>
                 </div>
-              );
-            }) : (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Nenhuma caixinha criada ainda.</p>
+                <button 
+                  className="btn-primary" 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  onClick={() => handlePayBill(b.id, b.title, Number(b.amount))}
+                >
+                  Pagar
+                </button>
+              </div>
+            )) : (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center' }}>Nenhuma conta pendente.</p>
             )}
           </div>
         </div>
 
-        {/* Top Customers */}
-        <div className="card customers-card">
+        {/* CRM e Alertas */}
+        <div className="card" style={{ gridColumn: 'span 4' }}>
+          <h3 className="card-title">CRM & Alertas de Clientes</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+            {crmData.length > 0 ? crmData.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px' }}>
+                <div style={{ 
+                  color: item.type === 'unpaid' ? 'var(--danger-color)' : item.type === 'gift' ? 'var(--primary-color)' : 'orange'
+                }}>
+                  {item.type === 'unpaid' ? <AlertCircle size={20} /> : item.type === 'gift' ? <Gift size={20} /> : <Clock size={20} />}
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{item.name}</h4>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>{item.reason}</p>
+                </div>
+              </div>
+            )) : (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center' }}>Nenhum alerta de CRM no momento.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Top Customers (Reduzido para não quebrar a grid, pois ocupava span 4 no layout original, agora podemos colocar no final) */}
+        <div className="card" style={{ gridColumn: 'span 4' }}>
           <h3 className="card-title">Top Clientes</h3>
           <div className="customers-list">
-            {topCustomers.length > 0 ? (
-              <>
-                <div className="podium-container">
-                  {topCustomers[1] && (
-                    <div className="podium-step podium-rank-2">
-                      <div className="podium-info">
-                        <div className="podium-name">{topCustomers[1].name}</div>
-                        <div className="podium-value">{formatCurrency(topCustomers[1].total)}</div>
-                      </div>
-                      <div className="podium-bar">2</div>
-                    </div>
-                  )}
-                  {topCustomers[0] && (
-                    <div className="podium-step podium-rank-1">
-                      <div className="podium-info">
-                        <div className="podium-name" style={{ color: '#d97706' }}>{topCustomers[0].name}</div>
-                        <div className="podium-value">{formatCurrency(topCustomers[0].total)}</div>
-                      </div>
-                      <div className="podium-bar">1</div>
-                    </div>
-                  )}
-                  {topCustomers[2] && (
-                    <div className="podium-step podium-rank-3">
-                      <div className="podium-info">
-                        <div className="podium-name">{topCustomers[2].name}</div>
-                        <div className="podium-value">{formatCurrency(topCustomers[2].total)}</div>
-                      </div>
-                      <div className="podium-bar">3</div>
-                    </div>
-                  )}
-                </div>
-                {topCustomers.slice(3, 5).map((c, idx) => (
-                  <div key={idx} className="customer-item">
-                    <span className="customer-name">{idx + 4}. {c.name}</span>
-                    <span className="customer-total">{formatCurrency(c.total)}</span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <p style={{ color: 'var(--text-secondary)' }}>Nenhum cliente registrado nos pedidos.</p>
+            {topCustomers.length > 0 ? topCustomers.map((c, idx) => (
+              <div key={idx} className="customer-item" style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                <span className="customer-name" style={{ color: idx < 3 ? 'var(--primary-color)' : 'var(--text-primary)', fontWeight: idx < 3 ? 'bold' : 'normal' }}>
+                  {idx + 1}. {c.name}
+                </span>
+                <span className="customer-total">{formatCurrency(c.total)}</span>
+              </div>
+            )) : (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center' }}>Nenhum cliente com pedidos finalizados.</p>
             )}
           </div>
         </div>
 
-        <div className="card events-card">
-          <h3 className="card-title">Próximos Eventos</h3>
-          <div className="events-list">
-            {upcomingEvents.length > 0 ? (
-              upcomingEvents.map((ev) => {
-                const dateObj = ev.date.toDate();
-                return (
-                  <div key={ev.id} className="event-item">
-                    <div className="event-date">
-                      <span className="event-day">{format(dateObj, 'd')}</span>
-                      <span className="event-month" style={{ textTransform: 'capitalize' }}>
-                        {format(dateObj, 'MMM', { locale: ptBR })}
-                      </span>
-                    </div>
-                    <div className="event-info">
-                      <h4 style={{ margin: 0, color: 'var(--text-primary)' }}>{ev.title}</h4>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Nenhum evento futuro agendado.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="card transfers-card" style={{ gridColumn: 'span 12' }}>
-          <h3 className="card-title">Histórico de Transferências Recentes</h3>
-          <div className="transfers-list">
-            {loading ? <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p> : transfers.slice(0, 10).map((t) => {
-              const isIncome = t.type === 'in';
-              const dateObj = t.createdAt?.toDate?.();
-              const dateStr = dateObj ? format(dateObj, "dd/MM/yyyy 'às' HH:mm") : 'Sem data';
-              
-              return (
-                <div key={t.id} className="transfer-item">
-                  <div className="transfer-left">
-                    <div className={`transfer-icon ${isIncome ? 'income' : 'expense'}`}>
-                      {isIncome ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
-                    </div>
-                    <div className="transfer-details">
-                      <h4>{t.description}</h4>
-                      <p>{dateStr}</p>
-                    </div>
-                  </div>
-                  <div className={`transfer-amount ${isIncome ? 'income' : 'expense'}`}>
-                    {isIncome ? '+' : '-'} {formatCurrency(Number(t.value))}
-                  </div>
-                </div>
-              );
-            })}
-            {!loading && transfers.length === 0 && (
-              <p style={{ color: 'var(--text-secondary)' }}>Nenhuma transferência encontrada.</p>
-            )}
-            {!loading && transfers.length > 0 && (
-              <Link to="/caixa" className="btn-more">Ver mais</Link>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
