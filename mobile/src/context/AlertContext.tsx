@@ -18,6 +18,10 @@ interface AlertState {
   message: string;
   type: AlertType;
   buttons?: AlertButton[];
+  isConfirm?: boolean;
+  onConfirm?: () => void;
+  confirmText?: string;
+  cancelText?: string;
 }
 
 interface AlertContextProps {

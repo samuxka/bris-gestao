@@ -141,7 +141,7 @@ export default function AddCashflow() {
         <Text style={styles.label}>Tipo de lançamento</Text>
         <View style={styles.toggleRow}>
           <TouchableOpacity
-            style={[styles.toggleBtn, type === 'in' && styles.toggleActive('in')]}
+            style={[styles.toggleBtn, type === 'in' && { backgroundColor: colors.success, borderColor: colors.success }]}
             onPress={() => setType('in')}
           >
             <Ionicons
@@ -154,7 +154,7 @@ export default function AddCashflow() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.toggleBtn, type === 'out' && styles.toggleActive('out')]}
+            style={[styles.toggleBtn, type === 'out' && { backgroundColor: colors.danger, borderColor: colors.danger }]}
             onPress={() => setType('out')}
           >
             <Ionicons
@@ -282,10 +282,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  toggleActive: (t: TransferType) => ({
-    backgroundColor: t === 'in' ? colors.success : colors.danger,
-    borderColor: t === 'in' ? colors.success : colors.danger,
-  }),
   toggleText: {
     fontFamily: typography.fontFamilyMedium,
     fontSize: 15,

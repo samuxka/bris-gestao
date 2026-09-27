@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Trash2 } from 'lucide-react';
 import { format, isSameMonth } from 'date-fns';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
@@ -29,7 +29,8 @@ export default function Caixa() {
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dinheiroCaixa, setDinheiroCaixa] = useState(0);
+  const [bancoAtual, setBancoAtual] = useState(0);
+  const [cofreAtual, setCofreAtual] = useState(0);
   const [entradasMes, setEntradasMes] = useState(0);
   const [despesasMes, setDespesasMes] = useState(0);
 
@@ -40,7 +41,10 @@ export default function Caixa() {
 
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addType, setAddType] = useState<'in' | 'out'>('out');
+  const [bills, setBills] = useState<any[]>([]);
+  const [addType, setAddType] = useState<'in' | 'out' | 'transfer'>('out');
+  const [addAccount, setAddAccount] = useState<'banco' | 'cofre'>('banco');
+  const [transferDirection, setTransferDirection] = useState<'banco_to_cofre' | 'cofre_to_banco'>('banco_to_cofre');
   const [addDesc, setAddDesc] = useState('');
   const [addValue, setAddValue] = useState('');
   const [addCategory, setAddCategory] = useState(EXPENSE_CATEGORIES[0]);
@@ -74,31 +78,54 @@ export default function Caixa() {
       setTransfers(docs);
 
       const now = new Date();
-      let caixaAtual = 0;
+      let bAtual = 0;
+      let cAtual = 0;
       let entradasAtual = 0;
       let despesasAtual = 0;
 
       docs.forEach((t: any) => {
         const val = Number(t.value) || 0;
+        const acc = t.account || 'banco';
         const isIncome = t.type === 'in';
         const date = t.createdAt?.toDate?.() || new Date();
         
-        if (isIncome) {
-          caixaAtual += val;
-          if (isSameMonth(date, now)) entradasAtual += val;
+        if (t.type === 'transfer') {
+          if (t.transferDirection === 'cofre_to_banco') {
+            bAtual += val;
+            cAtual -= val;
+          } else if (t.transferDirection === 'banco_to_cofre') {
+            bAtual -= val;
+            cAtual += val;
+          }
         } else {
-          caixaAtual -= val;
-          if (isSameMonth(date, now)) despesasAtual += val;
+          if (isIncome) {
+            if (acc === 'banco') bAtual += val; else cAtual += val;
+            if (isSameMonth(date, now)) entradasAtual += val;
+          } else {
+            if (acc === 'banco') bAtual -= val; else cAtual -= val;
+            if (isSameMonth(date, now)) despesasAtual += val;
+          }
         }
       });
 
-      setDinheiroCaixa(caixaAtual);
+      setBancoAtual(bAtual);
+      setCofreAtual(cAtual);
       setEntradasMes(entradasAtual);
       setDespesasMes(despesasAtual);
       setLoading(false);
     });
     
-    return unsub;
+    const qBills = query(collection(db, 'billsToPay'), where('userId', '==', user.uid));
+    const unsubBills = onSnapshot(qBills, (snap) => {
+      const b = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      b.sort((x: any, y: any) => (x.dueDate?.toDate?.()?.getTime() || 0) - (y.dueDate?.toDate?.()?.getTime() || 0));
+      setBills(b);
+    });
+
+    return () => {
+      unsub();
+      unsubBills();
+    };
   }, [user]);
 
   const handleSetLimit = () => {
@@ -145,7 +172,9 @@ export default function Caixa() {
         userId: user.uid,
         description: addDesc.trim(),
         type: addType,
-        category: addCategory,
+        account: addType === 'transfer' ? null : addAccount,
+        transferDirection: addType === 'transfer' ? transferDirection : null,
+        category: addType === 'transfer' ? 'Transferência Interna' : addCategory,
         value: parseFloat(addValue.replace(',', '.')),
         receiptUrls: [],
         createdAt: serverTimestamp()
@@ -185,6 +214,43 @@ export default function Caixa() {
     }
   };
 
+  const handleAddBill = () => {
+    showPrompt('Qual o nome da conta a pagar?', '', (name) => {
+      if (!name) return;
+      showPrompt('Qual o valor da conta? (ex: 50.00)', '', async (amount) => {
+        const val = parseFloat(amount.replace(',', '.'));
+        if (isNaN(val) || val <= 0) return showAlert('Valor inválido', 'Erro', 'error');
+        showPrompt('Data de vencimento (DD/MM/AAAA)', '', async (dateStr) => {
+          if (!dateStr) return;
+          const [d, m, y] = dateStr.split('/');
+          const dueDate = new Date(Number(y), Number(m)-1, Number(d), 12, 0, 0);
+          try {
+            await addDoc(collection(db, 'billsToPay'), {
+              userId: user!.uid,
+              name,
+              amount: val,
+              dueDate,
+              paid: false,
+              createdAt: serverTimestamp()
+            });
+            showAlert('Conta a pagar adicionada!', 'Sucesso', 'success');
+          } catch (e) {
+            showAlert('Erro ao adicionar conta', 'Erro', 'error');
+          }
+        });
+      });
+    });
+  };
+
+  const handleDeleteBill = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'billsToPay', id));
+      showAlert('Conta excluída com sucesso!', 'Sucesso', 'success');
+    } catch (e) {
+      showAlert('Erro ao excluir conta', 'Erro', 'error');
+    }
+  };
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -193,6 +259,9 @@ export default function Caixa() {
           <p className="page-subtitle">Gerencie suas transferências e controle os gastos.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn-secondary" onClick={() => window.location.href = '/anexos'} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            Ver Anexos
+          </button>
           <button className="btn-secondary" onClick={() => setShowCaixinhaModal(true)}>
             Criar Caixinha
           </button>
@@ -201,15 +270,16 @@ export default function Caixa() {
             setAddCategory(EXPENSE_CATEGORIES[0]);
             setShowAddModal(true);
           }}>
-            + Nova Transferência
+            + Nova Movimentação
           </button>
         </div>
       </div>
       
       <div className="caixa-grid">
-        <StatCard title="Dinheiro no Caixa" value={formatCurrency(dinheiroCaixa)} />
-        <StatCard title="Entradas (Este Mês)" value={formatCurrency(entradasMes)} />
-        <StatCard title="Despesas (Este Mês)" value={formatCurrency(despesasMes)} />
+        <StatCard title="Banco" value={formatCurrency(bancoAtual)} />
+        <StatCard title="Físico (Cofre)" value={formatCurrency(cofreAtual)} />
+        <StatCard title="Entradas Mês" value={formatCurrency(entradasMes)} />
+        <StatCard title="Despesas Mês" value={formatCurrency(despesasMes)} />
 
         <div className="transfers-full-card-wrapper">
           <div className="card transfers-full-card">
@@ -247,16 +317,23 @@ export default function Caixa() {
                 return (
                   <div key={t.id} className="transfer-item">
                     <div className="transfer-left">
-                      <div className={`transfer-icon ${isIncome ? 'income' : 'expense'}`}>
-                        {isIncome ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+                      <div className={`transfer-icon ${t.type === 'transfer' ? 'expense' : isIncome ? 'income' : 'expense'}`}>
+                        {t.type === 'transfer' ? <ArrowRight size={20} style={{ color: 'var(--accent-color)' }} /> : isIncome ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
                       </div>
                       <div className="transfer-details">
                         <h4>{t.description}</h4>
-                        <p>{dateStr} • <span style={{ fontWeight: 600 }}>{t.category || 'Outros'}</span></p>
+                        <p>
+                          {dateStr} • <span style={{ fontWeight: 600 }}>{t.category || 'Outros'}</span>
+                          {t.type === 'transfer' ? (
+                            <span> • <strong style={{ color: 'var(--accent-color)' }}>{t.transferDirection === 'banco_to_cofre' ? 'Banco ➔ Cofre' : 'Cofre ➔ Banco'}</strong></span>
+                          ) : (
+                            <span> • <strong>{t.account === 'cofre' ? 'Cofre' : 'Banco'}</strong></span>
+                          )}
+                        </p>
                       </div>
                     </div>
-                    <div className={`transfer-amount ${isIncome ? 'income' : 'expense'}`}>
-                      {isIncome ? '+' : '-'} {formatCurrency(Number(t.value))}
+                    <div className={`transfer-amount ${t.type === 'transfer' ? '' : isIncome ? 'income' : 'expense'}`} style={t.type === 'transfer' ? { color: 'var(--text-primary)' } : {}}>
+                      {t.type === 'transfer' ? '' : isIncome ? '+' : '-'} {formatCurrency(Number(t.value))}
                     </div>
                   </div>
                 );
@@ -327,6 +404,61 @@ export default function Caixa() {
 
       </div>
 
+      <div style={{ marginTop: '32px' }}>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>Contas a Pagar (Mensais)</h3>
+            <button className="btn-secondary" onClick={handleAddBill}>+ Adicionar Conta</button>
+          </div>
+          {bills.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary)' }}>Nenhuma conta a pagar registrada.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <th style={{ padding: '12px' }}>Descrição</th>
+                    <th style={{ padding: '12px' }}>Vencimento</th>
+                    <th style={{ padding: '12px' }}>Valor</th>
+                    <th style={{ padding: '12px' }}>Status</th>
+                    <th style={{ padding: '12px' }}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.map(b => {
+                    const dueObj = b.dueDate?.toDate?.();
+                    const isOverdue = dueObj && dueObj < new Date() && !b.paid;
+                    return (
+                      <tr key={b.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '12px' }}>{b.name}</td>
+                        <td style={{ padding: '12px', color: isOverdue ? 'var(--danger-color)' : 'var(--text-primary)', fontWeight: isOverdue ? 'bold' : 'normal' }}>
+                          {dueObj ? format(dueObj, 'dd/MM/yyyy') : 'Sem data'}
+                        </td>
+                        <td style={{ padding: '12px', fontWeight: 'bold' }}>{formatCurrency(Number(b.amount))}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold',
+                            backgroundColor: b.paid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: b.paid ? '#10b981' : '#f59e0b'
+                          }}>
+                            {b.paid ? 'Pago' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <button onClick={() => handleDeleteBill(b.id)} style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }} title="Excluir Conta">
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
@@ -347,7 +479,44 @@ export default function Caixa() {
                 >
                   Saída
                 </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setAddType('transfer'); setAddCategory('Transferência Interna'); }}
+                  style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: addType === 'transfer' ? 'var(--accent-color)' : 'var(--bg-color)', color: addType === 'transfer' ? '#fff' : 'var(--text-primary)', cursor: 'pointer' }}
+                >
+                  Transf. Interna
+                </button>
               </div>
+
+              {addType !== 'transfer' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Conta / Origem</label>
+                  <select 
+                    className="filter-select"
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                    value={addAccount}
+                    onChange={(e) => setAddAccount(e.target.value as any)}
+                  >
+                    <option value="banco">Banco</option>
+                    <option value="cofre">Físico (Cofre)</option>
+                  </select>
+                </div>
+              )}
+
+              {addType === 'transfer' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Direção</label>
+                  <select 
+                    className="filter-select"
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                    value={transferDirection}
+                    onChange={(e) => setTransferDirection(e.target.value as any)}
+                  >
+                    <option value="banco_to_cofre">Sacar (Banco ➔ Cofre)</option>
+                    <option value="cofre_to_banco">Depositar (Cofre ➔ Banco)</option>
+                  </select>
+                </div>
+              )}
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Descrição</label>
@@ -376,19 +545,21 @@ export default function Caixa() {
                 />
               </div>
 
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Categoria</label>
-                <select 
-                  className="filter-select"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
-                  value={addCategory}
-                  onChange={(e) => setAddCategory(e.target.value)}
-                >
-                  {(addType === 'in' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+              {addType !== 'transfer' && (
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Categoria</label>
+                  <select 
+                    className="filter-select"
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                    value={addCategory}
+                    onChange={(e) => setAddCategory(e.target.value)}
+                  >
+                    {(addType === 'in' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>

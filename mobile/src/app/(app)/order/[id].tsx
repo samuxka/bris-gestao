@@ -7,11 +7,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
+import { db, storage } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
 import { CustomAlert } from '../../../utils/CustomAlert';
@@ -50,6 +54,10 @@ export default function OrderDetails() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'transferencia' | null>(null);
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+
   useEffect(() => {
     if (!id) return;
     getDoc(doc(db, 'orders', id as string)).then((snap) => {
@@ -60,8 +68,69 @@ export default function OrderDetails() {
     });
   }, [id]);
 
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      setReceiptUri(result.assets[0].uri);
+    }
+  };
+
+  const confirmPayment = async () => {
+    if (!order || !user || !paymentMethod) return;
+    if (paymentMethod === 'transferencia' && !receiptUri) {
+      CustomAlert.alert('Atenção', 'Anexe o comprovante de transferência.');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      let url = null;
+      if (receiptUri) {
+        const response = await fetch(receiptUri);
+        const blob = await response.blob();
+        const filename = receiptUri.substring(receiptUri.lastIndexOf('/') + 1);
+        const storageRef = ref(storage, `receipts/${user.uid}/${Date.now()}_${filename}`);
+        await uploadBytes(storageRef, blob);
+        url = await getDownloadURL(storageRef);
+      }
+
+      await updateDoc(doc(db, 'orders', order.id), { status: 'done' });
+      
+      await addDoc(collection(db, 'cashflow'), {
+        userId: user.uid,
+        description: `Pagamento - ${order.clientName || 'Cliente'}`,
+        type: 'in',
+        value: order.total,
+        account: paymentMethod === 'dinheiro' ? 'cofre' : 'banco',
+        receiptUrls: url ? [url] : [],
+        createdAt: serverTimestamp(),
+        orderId: order.id,
+      });
+
+      setOrder({ ...order, status: 'done' });
+      setShowPaymentModal(false);
+      CustomAlert.alert('Sucesso', 'Pedido finalizado com sucesso!');
+    } catch (err) {
+      console.error(err);
+      CustomAlert.alert('Erro', 'Não foi possível finalizar o pedido.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (!order) return;
+    
+    if (newStatus === 'done') {
+      setPaymentMethod(null);
+      setReceiptUri(null);
+      setShowPaymentModal(true);
+      return;
+    }
+
     CustomAlert.alert(
       'Alterar status',
       `Mudar para "${STATUS_CONFIG[newStatus].label}"?`,
@@ -73,19 +142,6 @@ export default function OrderDetails() {
             setUpdating(true);
             try {
               await updateDoc(doc(db, 'orders', order.id), { status: newStatus });
-              
-              if (newStatus === 'done' && user) {
-                // Add the value to the balance (cashflow) automatically
-                await addDoc(collection(db, 'cashflow'), {
-                  userId: user.uid,
-                  description: `Pagamento - ${order.clientName || 'Cliente'}`,
-                  type: 'in',
-                  value: order.total,
-                  createdAt: serverTimestamp(),
-                  orderId: order.id,
-                });
-              }
-
               setOrder({ ...order, status: newStatus });
             } catch (err) {
               console.error(err);
@@ -200,6 +256,52 @@ export default function OrderDetails() {
         </View>
       )}
       <View style={{ height: 40 }} />
+      {/* Modal de Pagamento Personalizado */}
+      <Modal visible={showPaymentModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Finalizar Pedido</Text>
+            <Text style={styles.modalSubtitle}>Como o cliente pagou?</Text>
+            
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+              <TouchableOpacity 
+                style={[styles.paymentMethodBtn, paymentMethod === 'dinheiro' && styles.paymentMethodActive]} 
+                onPress={() => setPaymentMethod('dinheiro')}
+              >
+                <Ionicons name="cash-outline" size={24} color={paymentMethod === 'dinheiro' ? colors.surface : colors.text} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'dinheiro' && { color: colors.surface }]}>Dinheiro</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.paymentMethodBtn, paymentMethod === 'transferencia' && styles.paymentMethodActive]} 
+                onPress={() => setPaymentMethod('transferencia')}
+              >
+                <Ionicons name="card-outline" size={24} color={paymentMethod === 'transferencia' ? colors.surface : colors.text} />
+                <Text style={[styles.paymentMethodText, paymentMethod === 'transferencia' && { color: colors.surface }]}>Transferência</Text>
+              </TouchableOpacity>
+            </View>
+
+            {paymentMethod === 'transferencia' && (
+              <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
+                <Ionicons name="cloud-upload-outline" size={24} color={colors.primary} />
+                <Text style={styles.uploadBtnText}>{receiptUri ? 'Comprovante Anexado' : 'Anexar Comprovante'}</Text>
+              </TouchableOpacity>
+            )}
+            
+            {receiptUri && (
+              <Image source={{ uri: receiptUri }} style={{ width: 100, height: 100, borderRadius: 8, marginBottom: 16, alignSelf: 'center' }} />
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: colors.background }]} onPress={() => setShowPaymentModal(false)}>
+                <Text style={[styles.actionBtnText, { color: colors.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, { flex: 1, backgroundColor: colors.primary, opacity: !paymentMethod || (paymentMethod === 'transferencia' && !receiptUri) ? 0.5 : 1 }]} onPress={confirmPayment} disabled={updating}>
+                <Text style={styles.actionBtnText}>{updating ? 'Salvando...' : 'Confirmar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -313,5 +415,67 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilyBold,
     color: colors.surface,
     fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: spacing.l,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.l,
+    padding: spacing.l,
+    ...shadows.medium,
+  },
+  modalTitle: {
+    fontFamily: typography.fontFamilyBold,
+    fontSize: 20,
+    color: colors.text,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontFamily: typography.fontFamily,
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: spacing.l,
+    textAlign: 'center',
+  },
+  paymentMethodBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.m,
+    padding: spacing.m,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  paymentMethodActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  paymentMethodText: {
+    fontFamily: typography.fontFamilyMedium,
+    fontSize: 14,
+    color: colors.text,
+  },
+  uploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.s,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    borderRadius: radius.m,
+    padding: spacing.m,
+    marginBottom: spacing.l,
+  },
+  uploadBtnText: {
+    fontFamily: typography.fontFamilyMedium,
+    fontSize: 14,
+    color: colors.primary,
   },
 });

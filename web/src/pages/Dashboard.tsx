@@ -4,8 +4,9 @@ import { ArrowUpRight, ArrowDownRight, Gift, AlertCircle, Calendar as CalendarIc
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { collection, query, where, onSnapshot, doc, addDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, query, where, onSnapshot, doc, addDoc, serverTimestamp, deleteDoc, updateDoc } from 'firebase/firestore';
+import { db, storage } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
 import { format, subDays, isSameMonth, startOfDay, isSameDay, isSameYear, differenceInDays } from 'date-fns';
@@ -215,22 +216,41 @@ export default function Dashboard() {
   };
 
   const handlePayBill = (id: string, title: string, amount: number) => {
-    showConfirm(`Deseja marcar "${title}" como pago? (Isso também registrará a saída no caixa automaticamente)`, async () => {
-      try {
-        await deleteDoc(doc(db, 'billsToPay', id));
-        // Registra despesa
-        await addDoc(collection(db, 'cashflow'), {
-          userId: user?.uid,
-          type: 'out',
-          value: amount,
-          description: `Pagamento de Conta: ${title}`,
-          createdAt: serverTimestamp()
-        });
-        showAlert('Conta paga!', 'Sucesso', 'success');
-      } catch(e) {
-        showAlert('Erro ao pagar conta', 'Erro', 'error');
-      }
-    }, 'Pagar Conta');
+    // Create an invisible file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      showConfirm(`Confirmar pagamento de "${title}" no valor de ${formatCurrency(amount)}?`, async () => {
+        try {
+          const storageRef = ref(storage, `receipts/${user?.uid}/${Date.now()}_${file.name}`);
+          await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(storageRef);
+
+          await updateDoc(doc(db, 'billsToPay', id), { paid: true });
+          
+          await addDoc(collection(db, 'cashflow'), {
+            userId: user?.uid,
+            type: 'out',
+            value: amount,
+            description: `Pagamento de Conta: ${title}`,
+            account: 'banco',
+            receiptUrls: [url],
+            createdAt: serverTimestamp()
+          });
+          showAlert('Conta paga com sucesso!', 'Sucesso', 'success');
+        } catch(err) {
+          showAlert('Erro ao pagar conta e enviar comprovante', 'Erro', 'error');
+        }
+      }, 'Confirmar Pagamento');
+    };
+    
+    // Trigger file picker
+    input.click();
   };
 
   return (
@@ -315,23 +335,20 @@ export default function Dashboard() {
         <div className="card" style={{ gridColumn: 'span 4' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 className="card-title" style={{ margin: 0 }}>Contas a Pagar</h3>
-            <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={handleAddBill}>
-              + Nova Conta
-            </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-            {bills.length > 0 ? bills.map(b => (
+            {bills.filter(b => !b.paid).length > 0 ? bills.filter(b => !b.paid).map(b => (
               <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{b.title}</h4>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{b.name || b.title}</h4>
                   <p style={{ margin: 0, fontSize: '12px', color: 'var(--danger-color)', fontWeight: 'bold' }}>{formatCurrency(Number(b.amount))}</p>
                 </div>
                 <button 
                   className="btn-primary" 
                   style={{ padding: '6px 12px', fontSize: '12px' }}
-                  onClick={() => handlePayBill(b.id, b.title, Number(b.amount))}
+                  onClick={() => handlePayBill(b.id, b.name || b.title, Number(b.amount))}
                 >
-                  Pagar
+                  Pagar (Anexar)
                 </button>
               </div>
             )) : (

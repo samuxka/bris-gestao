@@ -9,6 +9,7 @@ import ClienteDetail from './pages/ClienteDetail';
 import Estoque from './pages/Estoque';
 import Produtos from './pages/Produtos';
 import Cupons from './pages/Cupons';
+import Anexos from './pages/Anexos';
 import Login from './pages/Login';
 import { useAuth } from './context/AuthContext';
 
@@ -123,6 +124,7 @@ function App() {
             <Route path="/estoque" element={<Estoque />} />
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/cupons" element={<Cupons />} />
+            <Route path="/anexos" element={<Anexos />} />
           </Routes>
         </main>
       </div>
