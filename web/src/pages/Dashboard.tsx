@@ -7,7 +7,7 @@ import {
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
-import { format, subMonths, isSameMonth, startOfDay } from 'date-fns';
+import { format, subMonths, subDays, isSameMonth, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const StatCard = ({ title, value, trend, trendValue }: { title: string, value: string, trend: 'up' | 'down', trendValue: string }) => (
@@ -121,27 +121,27 @@ export default function Dashboard() {
       let entradasPassadas = 0;
       let despesasPassadas = 0;
 
-      const monthlyData: Record<string, { name: string, dateObj: Date, entradas: number, saidas: number }> = {};
+      const dailyData: Record<string, { name: string, dateObj: Date, entradas: number, saidas: number }> = {};
 
       docs.forEach((t: any) => {
         const val = Number(t.value) || 0;
         const isIncome = t.type === 'in';
         
         const date = t.createdAt?.toDate?.() || new Date();
-        const monthKey = format(date, 'MMM yy', { locale: ptBR });
+        const dayKey = format(date, 'dd MMM', { locale: ptBR });
         
-        if (!monthlyData[monthKey]) {
-          monthlyData[monthKey] = { name: monthKey, dateObj: date, entradas: 0, saidas: 0 };
+        if (!dailyData[dayKey]) {
+          dailyData[dayKey] = { name: dayKey, dateObj: startOfDay(date), entradas: 0, saidas: 0 };
         }
         
         if (isIncome) {
           caixaAtual += val;
-          monthlyData[monthKey].entradas += val;
+          dailyData[dayKey].entradas += val;
           if (isSameMonth(date, now)) entradasAtual += val;
           else if (isSameMonth(date, lastMonth)) entradasPassadas += val;
         } else {
           caixaAtual -= val;
-          monthlyData[monthKey].saidas += val;
+          dailyData[dayKey].saidas += val;
           if (isSameMonth(date, now)) despesasAtual += val;
           else if (isSameMonth(date, lastMonth)) despesasPassadas += val;
         }
@@ -157,9 +157,20 @@ export default function Dashboard() {
       setDespesasMesAnterior(despesasPassadas);
       setCaixaMesAnterior(caixaPassado);
 
-      const chartArr = Object.values(monthlyData).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+      const chartArr = Object.values(dailyData).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
       
-      // If we only have one point, make it look a bit better or just keep it
+      // Se houver apenas 1 dia com dados, o AreaChart não renderiza a área (precisa de 2 pontos).
+      // Vamos adicionar um ponto "fictício" do dia anterior com valores 0.
+      if (chartArr.length === 1) {
+        const prevDayDate = subDays(chartArr[0].dateObj, 1);
+        chartArr.unshift({
+          name: format(prevDayDate, 'dd MMM', { locale: ptBR }),
+          dateObj: prevDayDate,
+          entradas: 0,
+          saidas: 0
+        });
+      }
+
       setChartData(chartArr);
 
       setLoading(false);
@@ -245,7 +256,7 @@ export default function Dashboard() {
         />
 
         <div className="card chart-card">
-          <h3 className="card-title">Fluxo de Caixa Mensal (Entradas vs Saídas)</h3>
+          <h3 className="card-title">Fluxo de Caixa Diário (Entradas vs Saídas)</h3>
           <div className="chart-container">
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
