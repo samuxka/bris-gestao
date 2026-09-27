@@ -313,12 +313,13 @@ export default function Caixa() {
                 const isIncome = t.type === 'in';
                 const dateObj = t.createdAt?.toDate?.();
                 const dateStr = dateObj ? format(dateObj, "dd/MM/yyyy 'às' HH:mm") : 'Sem data';
+                const isBankMovement = t.account === 'banco' || t.type === 'transfer';
                 
                 return (
                   <div key={t.id} className="transfer-item">
                     <div className="transfer-left">
-                      <div className={`transfer-icon ${t.type === 'transfer' ? 'expense' : isIncome ? 'income' : 'expense'}`}>
-                        {t.type === 'transfer' ? <ArrowRight size={20} style={{ color: 'var(--accent-color)' }} /> : isIncome ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
+                      <div className={`transfer-icon ${isBankMovement ? 'bank' : isIncome ? 'income' : 'expense'}`}>
+                        {t.type === 'transfer' ? <ArrowRight size={20} /> : isIncome ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
                       </div>
                       <div className="transfer-details">
                         <h4>{t.description}</h4>
