@@ -534,6 +534,13 @@ body {
   flex-direction: column;
 }
 
+.transfers-list-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 8px;
+}
+
 .caixa-right-column {
   grid-column: span 4;
   display: flex;
