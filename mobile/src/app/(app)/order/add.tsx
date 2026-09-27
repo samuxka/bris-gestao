@@ -31,6 +31,11 @@ export default function AddOrder() {
   const [items, setItems] = useState<OrderItem[]>([{ name: '', qty: '1', price: '' }]);
   const [saving, setSaving] = useState(false);
 
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
   const [clients, setClients] = useState<any[]>([]);
   const [showClientList, setShowClientList] = useState(false);
   const [addingClient, setAddingClient] = useState(false);
@@ -109,12 +114,58 @@ export default function AddOrder() {
     });
   };
 
-  const getTotal = () => {
+  const getSubtotal = () => {
     return items.reduce((sum, item) => {
       const qty = parseInt(item.qty) || 0;
       const price = parseFloat(item.price.replace(',', '.')) || 0;
       return sum + qty * price;
     }, 0);
+  };
+
+  const getDiscountAmount = (subtotal: number) => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountType === 'percent') {
+      return subtotal * (Number(appliedCoupon.discountValue) / 100);
+    } else {
+      return Number(appliedCoupon.discountValue);
+    }
+  };
+
+  const getTotal = () => {
+    const sub = getSubtotal();
+    const disc = getDiscountAmount(sub);
+    return Math.max(0, sub - disc);
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!user || !couponCode.trim()) return;
+    setValidatingCoupon(true);
+    setCouponError('');
+    try {
+      const q = query(
+        collection(db, 'coupons'), 
+        where('userId', '==', user.uid), 
+        where('code', '==', couponCode.trim().toUpperCase())
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        setCouponError('Cupom não encontrado.');
+        setAppliedCoupon(null);
+      } else {
+        const coupon = snap.docs[0].data();
+        if (!coupon.isActive) {
+          setCouponError('Este cupom está inativo.');
+          setAppliedCoupon(null);
+        } else {
+          setAppliedCoupon({ id: snap.docs[0].id, ...coupon });
+        }
+      }
+    } catch (e) {
+      setCouponError('Erro ao validar cupom.');
+      setAppliedCoupon(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
   };
 
   const getItemsString = () =>
@@ -138,6 +189,9 @@ export default function AddOrder() {
         items: getItemsString(),
         itemsDetail: validItems,
         notes: notes.trim(),
+        subtotal: getSubtotal(),
+        discountAmount: getDiscountAmount(getSubtotal()),
+        couponCode: appliedCoupon?.code || null,
         total: getTotal(),
         status: 'pending',
         createdAt: serverTimestamp(),
@@ -314,8 +368,49 @@ export default function AddOrder() {
           multiline
         />
 
+        {/* Cupom */}
+        <Text style={styles.label}>Cupom de Desconto</Text>
+        <View style={{ flexDirection: 'row', gap: spacing.s, alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <TextInput
+              style={[styles.input, couponError ? { borderColor: colors.danger } : null]}
+              placeholder="Ex: PROMO10"
+              placeholderTextColor={colors.textSecondary}
+              value={couponCode}
+              onChangeText={(v) => {
+                setCouponCode(v.toUpperCase());
+                setCouponError('');
+                if (appliedCoupon) setAppliedCoupon(null);
+              }}
+              autoCapitalize="characters"
+            />
+            {couponError ? <Text style={{ color: colors.danger, fontSize: 12, marginTop: 4, paddingLeft: 4 }}>{couponError}</Text> : null}
+            {appliedCoupon ? (
+              <Text style={{ color: colors.success, fontSize: 12, marginTop: 4, paddingLeft: 4 }}>
+                Cupom aplicado: -{appliedCoupon.discountType === 'percent' ? `${appliedCoupon.discountValue}%` : `€ ${Number(appliedCoupon.discountValue).toFixed(2)}`}
+              </Text>
+            ) : null}
+          </View>
+          <TouchableOpacity 
+            style={[styles.saveBtn, { marginTop: 0, paddingVertical: 14, width: 100 }]} 
+            onPress={handleApplyCoupon}
+            disabled={validatingCoupon || !couponCode.trim()}
+          >
+            {validatingCoupon ? (
+              <ActivityIndicator color={colors.surface} size="small" />
+            ) : (
+              <Text style={[styles.saveBtnText, { fontSize: 14 }]}>Aplicar</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* Total */}
         <View style={styles.totalCard}>
+          {appliedCoupon && (
+            <Text style={[styles.totalLabel, { color: colors.success, fontSize: 14, marginBottom: 4 }]}>
+              Subtotal: € {getSubtotal().toFixed(2)}
+            </Text>
+          )}
           <Text style={styles.totalLabel}>Total do pedido</Text>
           <Text style={styles.totalValue}>€ {total.toFixed(2)}</Text>
         </View>

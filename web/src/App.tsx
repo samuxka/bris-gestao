@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Calendar, Users, Package, LogOut, Moon, Sun, PaperBag } from 'lucide-react';
+import { LayoutDashboard, Wallet, Calendar, Users, Package, LogOut, Moon, Sun, PaperBag, Ticket } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Caixa from './pages/Caixa';
 import Calendario from './pages/Calendario';
 import Clientes from './pages/Clientes';
 import Estoque from './pages/Estoque';
 import Produtos from './pages/Produtos';
+import Cupons from './pages/Cupons';
 import Login from './pages/Login';
 import { useAuth } from './context/AuthContext';
 
@@ -39,6 +40,10 @@ const Sidebar = ({ onLogout, isDarkMode, onToggleTheme }: { onLogout: () => void
       <NavLink to="/produtos" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
         <PaperBag size={20} />
         Produtos
+      </NavLink>
+      <NavLink to="/cupons" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <Ticket size={20} />
+        Cupons
       </NavLink>
     </nav>
     <div style={{ padding: '0 12px', marginTop: 'auto', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -90,6 +95,7 @@ function App() {
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/estoque" element={<Estoque />} />
             <Route path="/produtos" element={<Produtos />} />
+            <Route path="/cupons" element={<Cupons />} />
           </Routes>
         </main>
       </div>
