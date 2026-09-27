@@ -11,11 +11,11 @@ import {
   Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
-import { db, storage } from '../../../config/firebase';
+import { db } from '../../../config/firebase';
+import { uploadToCloudinary } from '../../../services/cloudinary';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
 import { CustomAlert } from '../../../utils/CustomAlert';
@@ -89,12 +89,8 @@ export default function OrderDetails() {
     try {
       let url = null;
       if (receiptUri) {
-        const response = await fetch(receiptUri);
-        const blob = await response.blob();
-        const filename = receiptUri.substring(receiptUri.lastIndexOf('/') + 1);
-        const storageRef = ref(storage, `receipts/${user.uid}/${Date.now()}_${filename}`);
-        await uploadBytes(storageRef, blob);
-        url = await getDownloadURL(storageRef);
+        url = await uploadToCloudinary(receiptUri);
+        if (!url) throw new Error("Falha no upload para o Cloudinary");
       }
 
       await updateDoc(doc(db, 'orders', order.id), { status: 'done' });

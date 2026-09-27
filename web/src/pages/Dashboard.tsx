@@ -4,9 +4,9 @@ import { ArrowUpRight, ArrowDownRight, Gift, AlertCircle, Calendar as CalendarIc
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { collection, query, where, onSnapshot, doc, addDoc, serverTimestamp, deleteDoc, updateDoc } from 'firebase/firestore';
-import { db, storage } from '../config/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, query, where, onSnapshot, doc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { uploadToCloudinary } from '../services/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
 import { format, subDays, isSameMonth, startOfDay, isSameDay, isSameYear, differenceInDays } from 'date-fns';
@@ -193,6 +193,7 @@ export default function Dashboard() {
     };
   }, [user, period]);
 
+  // @ts-ignore
   const handleAddBill = () => {
     showPrompt('Qual o nome da conta a pagar?', '', (name) => {
       if (!name) return;
@@ -227,9 +228,8 @@ export default function Dashboard() {
 
       showConfirm(`Confirmar pagamento de "${title}" no valor de ${formatCurrency(amount)}?`, async () => {
         try {
-          const storageRef = ref(storage, `receipts/${user?.uid}/${Date.now()}_${file.name}`);
-          await uploadBytes(storageRef, file);
-          const url = await getDownloadURL(storageRef);
+          const url = await uploadToCloudinary(file);
+          if (!url) throw new Error("Falha no upload para o Cloudinary");
 
           await updateDoc(doc(db, 'billsToPay', id), { paid: true });
           
