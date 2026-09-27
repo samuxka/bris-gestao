@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-
+import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
 type AlertType = 'info' | 'success' | 'error' | 'warning' | 'prompt';
 
 interface AlertState {
@@ -7,7 +7,7 @@ interface AlertState {
   title?: string;
   message: string;
   type: AlertType;
-  onConfirm?: (value?: string) => void;
+  onConfirm?: any;
   onCancel?: () => void;
   isConfirm: boolean;
   isPrompt: boolean;
