@@ -3,10 +3,12 @@ import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { Edit2, Trash2, Search, Phone, MapPin } from 'lucide-react';
+import { Edit2, Trash2, Search, Phone, MapPin, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Clientes() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { showAlert, showConfirm } = useAlert();
   const [clients, setClients] = useState<any[]>([]);
   const [ordersMap, setOrdersMap] = useState<Record<string, number>>({});
@@ -259,6 +261,9 @@ export default function Clientes() {
                       {formatCurrency(totalGasto)}
                     </td>
                     <td style={{ padding: '16px 12px', display: 'flex', gap: '8px' }}>
+                      <button onClick={() => navigate(`/clientes/${client.id}`)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--primary-color)' }} title="Ver Perfil">
+                        <Eye size={18} />
+                      </button>
                       <button onClick={() => openModal(client)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--accent-color)' }} title="Editar">
                         <Edit2 size={18} />
                       </button>

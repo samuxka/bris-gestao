@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Caixa from './pages/Caixa';
 import Calendario from './pages/Calendario';
 import Clientes from './pages/Clientes';
+import ClienteDetail from './pages/ClienteDetail';
 import Estoque from './pages/Estoque';
 import Produtos from './pages/Produtos';
 import Cupons from './pages/Cupons';
@@ -93,6 +94,7 @@ function App() {
             <Route path="/caixa/*" element={<Caixa />} />
             <Route path="/calendario" element={<Calendario />} />
             <Route path="/clientes" element={<Clientes />} />
+            <Route path="/clientes/:id" element={<ClienteDetail />} />
             <Route path="/estoque" element={<Estoque />} />
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/cupons" element={<Cupons />} />
