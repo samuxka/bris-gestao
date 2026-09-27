@@ -57,7 +57,7 @@ const Sidebar = ({ onLogout, isDarkMode, onToggleTheme }: { onLogout: () => void
       </button>
     </div>
   </aside>
-  );
+);
 
 function App() {
   const { user, isLoading, signOut } = useAuth();

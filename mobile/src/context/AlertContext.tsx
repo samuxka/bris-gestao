@@ -4,11 +4,7 @@ import { colors, typography, spacing, radius, shadows } from '../theme/theme';
 
 type AlertType = 'info' | 'success' | 'error' | 'warning';
 
-interface AlertState {
-  isOpen: boolean;
-  title?: string;
-  message: string;
-  type: AlertType;
+
 interface AlertButton {
   text: string;
   onPress?: () => void;
