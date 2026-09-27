@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
 import { Edit2, Trash2, Search, AlertTriangle, Plus, Minus } from 'lucide-react';
 
-const CATEGORIES = ['Ingredientes', 'Bebidas', 'Embalagens', 'Outros'];
+const CATEGORIES = ['Ingredientes', 'Embalagens', 'Outros'];
 const UNITS = ['un', 'kg', 'g', 'L', 'ml', 'caixa', 'pacote'];
 
 export default function Estoque() {

@@ -4,8 +4,9 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { ArrowLeft, Phone, MapPin, Star, Gift, ShoppingBag, DollarSign, Mail } from 'lucide-react';
+import { ArrowLeft, Phone, MapPin, Star, Gift, ShoppingBag, DollarSign, Mail, Clock } from 'lucide-react';
 import emailjs from '@emailjs/browser';
+import { format } from 'date-fns';
 
 export default function ClienteDetail() {
   const { id } = useParams();
@@ -49,6 +50,11 @@ export default function ClienteDetail() {
 
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a: any, b: any) => {
+        const tA = a.createdAt?.toMillis?.() || 0;
+        const tB = b.createdAt?.toMillis?.() || 0;
+        return tB - tA; // Decrescente
+      });
       setOrders(docs);
       setLoading(false);
     });
@@ -218,6 +224,61 @@ export default function ClienteDetail() {
             )}
           </div>
         </div>
+
+        {/* Histórico de Pedidos */}
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+            <Clock size={20} color="var(--text-secondary)" />
+            <h3 style={{ fontSize: '18px', margin: 0 }}>Histórico de Pedidos</h3>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            {orders.length > 0 ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
+                    <th style={{ padding: '12px', color: 'var(--text-secondary)' }}>Data e Hora</th>
+                    <th style={{ padding: '12px', color: 'var(--text-secondary)' }}>Status</th>
+                    <th style={{ padding: '12px', color: 'var(--text-secondary)' }}>Itens</th>
+                    <th style={{ padding: '12px', color: 'var(--text-secondary)' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(order => {
+                    const dateObj = order.createdAt?.toDate?.();
+                    const isDone = order.status === 'done';
+                    const isCanceled = order.status === 'canceled';
+                    return (
+                      <tr key={order.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                        <td style={{ padding: '16px 12px' }}>
+                          {dateObj ? format(dateObj, 'dd/MM/yyyy HH:mm') : '-'}
+                        </td>
+                        <td style={{ padding: '16px 12px' }}>
+                          <span style={{
+                            padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold',
+                            backgroundColor: isDone ? 'rgba(16, 185, 129, 0.1)' : isCanceled ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: isDone ? '#10b981' : isCanceled ? '#ef4444' : '#f59e0b'
+                          }}>
+                            {isDone ? 'Concluído/Pago' : isCanceled ? 'Cancelado' : 'Pendente'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>
+                          {(order.items || []).map((item: any) => `${item.quantity}x ${item.name}`).join(', ')}
+                        </td>
+                        <td style={{ padding: '16px 12px', fontWeight: 'bold' }}>
+                          {formatCurrency(Number(order.total))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '20px' }}>Nenhum pedido encontrado.</p>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );
