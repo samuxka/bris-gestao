@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { Edit2, Trash2, Search, Tag } from 'lucide-react';
 
 export default function Cupons() {
   const { user } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const [coupons, setCoupons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,21 +82,21 @@ export default function Cupons() {
       setShowModal(false);
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar cupom.');
+      showAlert('Erro ao salvar cupom.', 'Erro', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este cupom?')) {
+  const handleDelete = (id: string) => {
+    showConfirm('Tem certeza que deseja excluir este cupom?', async () => {
       try {
         await deleteDoc(doc(db, 'coupons', id));
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir cupom.');
+        showAlert('Erro ao excluir cupom.', 'Erro', 'error');
       }
-    }
+    }, 'Excluir Cupom');
   };
 
   const filteredCoupons = coupons.filter(c => 

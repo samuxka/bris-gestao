@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { Edit2, Trash2, Search } from 'lucide-react';
 
 export default function Produtos() {
   const { user } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -80,21 +82,21 @@ export default function Produtos() {
       setShowModal(false);
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar produto.');
+      showAlert('Erro ao salvar produto.', 'Erro', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este produto do cardápio?')) {
+  const handleDelete = (id: string) => {
+    showConfirm('Tem certeza que deseja excluir este produto do cardápio?', async () => {
       try {
         await deleteDoc(doc(db, 'products', id));
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir produto.');
+        showAlert('Erro ao excluir produto.', 'Erro', 'error');
       }
-    }
+    }, 'Excluir Produto');
   };
 
   const filteredProducts = products.filter(p => 

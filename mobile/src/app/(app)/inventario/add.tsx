@@ -6,6 +6,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 export default function InventarioAdd() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function InventarioAdd() {
 
   const handleSave = async () => {
     if (!name || !price || !quantity) {
-      Alert.alert('Erro', 'Por favor preencha todos os campos.');
+      CustomAlert.alert('Erro', 'Por favor preencha todos os campos.');
       return;
     }
 
@@ -38,7 +39,7 @@ export default function InventarioAdd() {
       router.back();
     } catch (error) {
       console.error("Erro ao adicionar produto:", error);
-      Alert.alert('Erro', 'Não foi possível salvar o produto.');
+      CustomAlert.alert('Erro', 'Não foi possível salvar o produto.');
     } finally {
       setLoading(false);
     }

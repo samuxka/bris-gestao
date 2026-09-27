@@ -16,6 +16,7 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'fire
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { useAlert } from '../../../context/AlertContext';
 
 interface OrderItem {
   name: string;
@@ -26,6 +27,7 @@ interface OrderItem {
 export default function AddOrder() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const [clientName, setClientName] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<OrderItem[]>([{ name: '', qty: '1', price: '' }]);
@@ -88,10 +90,10 @@ export default function AddOrder() {
       const docRef = await addDoc(collection(db, 'clients'), newClient);
       setClients([...clients, { id: docRef.id, ...newClient }]);
       setShowClientList(false);
-      Alert.alert('Sucesso', 'Cliente cadastrado com sucesso!');
+      showAlert('Sucesso', 'Cliente cadastrado com sucesso!', 'success');
     } catch(e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível cadastrar o cliente.');
+      showAlert('Erro', 'Não foi possível cadastrar o cliente.', 'error');
     } finally {
       setAddingClient(false);
     }
@@ -177,7 +179,7 @@ export default function AddOrder() {
   const handleSave = async () => {
     const validItems = items.filter((i) => i.name.trim());
     if (validItems.length === 0) {
-      Alert.alert('Atenção', 'Adicione pelo menos um item ao pedido.');
+      showAlert('Atenção', 'Adicione pelo menos um item ao pedido.', 'warning');
       return;
     }
 
@@ -199,7 +201,7 @@ export default function AddOrder() {
       router.back();
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
+      showAlert('Erro', 'Não foi possível salvar. Tente novamente.', 'error');
     } finally {
       setSaving(false);
     }

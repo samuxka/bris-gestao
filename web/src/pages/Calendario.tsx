@@ -7,10 +7,12 @@ import { ptBR } from 'date-fns/locale';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Bell } from 'lucide-react';
 
 export default function Calendario() {
   const { user } = useAuth();
+  const { showAlert } = useAlert();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
   
@@ -81,7 +83,7 @@ export default function Calendario() {
       setSelectedDay(null);
     } catch (error) {
       console.error(error);
-      alert('Erro ao criar evento.');
+      showAlert('Erro ao criar evento.', 'Erro', 'error');
     } finally {
       setLoading(false);
     }

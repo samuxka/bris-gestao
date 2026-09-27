@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 interface Recipe {
   id: string;
@@ -57,7 +58,7 @@ export default function RecipeDetails() {
   }
 
   const handleDelete = () => {
-    Alert.alert('Excluir Receita', 'Tem certeza que deseja excluir esta receita?', [
+    CustomAlert.alert('Excluir Receita', 'Tem certeza que deseja excluir esta receita?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',

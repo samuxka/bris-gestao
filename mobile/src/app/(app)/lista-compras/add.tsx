@@ -7,6 +7,7 @@ import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 interface ItemForm {
   qty: string;
@@ -38,7 +39,7 @@ export default function AddShoppingList() {
 
   const handleSave = async () => {
     if (!listName.trim()) {
-      Alert.alert('Erro', 'Por favor, introduza um título para a lista.');
+      CustomAlert.alert('Erro', 'Por favor, introduza um título para a lista.');
       return;
     }
 
@@ -70,7 +71,7 @@ export default function AddShoppingList() {
       router.replace({ pathname: '/(app)/lista-compras/[id]', params: { id: listRef.id } });
     } catch (err) {
       console.error("Error creating shopping list", err);
-      Alert.alert('Erro', 'Ocorreu um erro ao criar a lista.');
+      CustomAlert.alert('Erro', 'Ocorreu um erro ao criar a lista.');
       setLoading(false);
     }
   };

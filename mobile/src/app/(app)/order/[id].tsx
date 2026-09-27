@@ -14,6 +14,7 @@ import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'fir
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 type OrderStatus = 'pending' | 'done' | 'canceled' | 'unpaid';
 
@@ -61,7 +62,7 @@ export default function OrderDetails() {
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (!order) return;
-    Alert.alert(
+    CustomAlert.alert(
       'Alterar status',
       `Mudar para "${STATUS_CONFIG[newStatus].label}"?`,
       [
@@ -88,7 +89,7 @@ export default function OrderDetails() {
               setOrder({ ...order, status: newStatus });
             } catch (err) {
               console.error(err);
-              Alert.alert('Erro', 'Não foi possível atualizar o status.');
+              CustomAlert.alert('Erro', 'Não foi possível atualizar o status.');
             } finally {
               setUpdating(false);
             }

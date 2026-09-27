@@ -7,6 +7,7 @@ import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
 import FAB from '../../../components/FAB';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 export interface ShoppingList {
   id: string;
@@ -47,7 +48,7 @@ export default function ListaComprasIndex() {
   }, [user]);
 
   const handleDelete = (id: string) => {
-    Alert.alert(
+    CustomAlert.alert(
       'Remover Lista',
       'Tem a certeza que deseja remover esta lista de compras?',
       [
@@ -59,7 +60,7 @@ export default function ListaComprasIndex() {
             try {
               await deleteDoc(doc(db, 'shoppingLists', id));
             } catch (err) {
-              Alert.alert('Erro', 'Não foi possível remover a lista.');
+              CustomAlert.alert('Erro', 'Não foi possível remover a lista.');
             }
           }
         }
@@ -105,7 +106,7 @@ export default function ListaComprasIndex() {
       <Stack.Screen 
         options={{
           headerRight: () => (
-            <TouchableOpacity onPress={() => Alert.alert('Filtro', 'Em breve!')} style={{ marginRight: spacing.m }}>
+            <TouchableOpacity onPress={() => CustomAlert.alert('Filtro', 'Em breve!')} style={{ marginRight: spacing.m }}>
               <Ionicons name="filter" size={24} color={colors.primary} />
             </TouchableOpacity>
           )

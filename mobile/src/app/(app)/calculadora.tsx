@@ -6,6 +6,7 @@ import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme/theme';
 import { InventoryItem } from './inventario/index'; // Re-using type from inventario/index.tsx
+import { CustomAlert } from '../../utils/CustomAlert';
 
 interface CalculationItem {
   id: string; // generate local id
@@ -43,13 +44,13 @@ export default function Calculadora() {
 
   const handleAddItem = () => {
     if (!selectedInventoryItem || !quantityInput) {
-      Alert.alert('Erro', 'Selecione um produto e introduza a quantidade.');
+      CustomAlert.alert('Erro', 'Selecione um produto e introduza a quantidade.');
       return;
     }
 
     const qty = parseFloat(quantityInput.replace(',', '.'));
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Erro', 'Quantidade inválida.');
+      CustomAlert.alert('Erro', 'Quantidade inválida.');
       return;
     }
 

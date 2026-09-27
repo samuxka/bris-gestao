@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { format, isSameMonth } from 'date-fns';
 import {
@@ -24,6 +25,7 @@ const INCOME_CATEGORIES = ['Venda', 'Investimento', 'Outros'];
 
 export default function Caixa() {
   const { user } = useAuth();
+  const { showAlert, showPrompt } = useAlert();
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,11 +102,12 @@ export default function Caixa() {
   }, [user]);
 
   const handleSetLimit = () => {
-    const val = window.prompt('Defina o limite de gastos para o mês (€):', expenseLimit.toString());
-    if (val && !isNaN(Number(val)) && Number(val) > 0) {
-      setExpenseLimit(Number(val));
-      localStorage.setItem('expenseLimit', val);
-    }
+    showPrompt('Defina o limite de gastos para o mês (€):', expenseLimit.toString(), (val) => {
+      if (val && !isNaN(Number(val)) && Number(val) > 0) {
+        setExpenseLimit(Number(val));
+        localStorage.setItem('expenseLimit', val);
+      }
+    }, 'Limite de Gastos');
   };
 
   const filteredTransfers = transfers.filter(t => {
@@ -152,7 +155,7 @@ export default function Caixa() {
       setAddValue('');
     } catch (err) {
       console.error(err);
-      alert('Erro ao adicionar transferência');
+      showAlert('Erro ao adicionar transferência', 'Erro', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +179,7 @@ export default function Caixa() {
       setCaixinhaTarget('');
     } catch (err) {
       console.error(err);
-      alert('Erro ao criar caixinha');
+      showAlert('Erro ao criar caixinha', 'Erro', 'error');
     } finally {
       setIsSubmittingCaixinha(false);
     }

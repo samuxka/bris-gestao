@@ -7,6 +7,7 @@ import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
 import FAB from '../../../components/FAB';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 export interface InventoryItem {
   id: string;
@@ -41,7 +42,7 @@ export default function InventarioIndex() {
   }, [user]);
 
   const handleDelete = (id: string) => {
-    Alert.alert(
+    CustomAlert.alert(
       'Remover Produto',
       'Tem a certeza que deseja remover este produto do inventário?',
       [
@@ -53,7 +54,7 @@ export default function InventarioIndex() {
             try {
               await deleteDoc(doc(db, 'inventory', id));
             } catch (err) {
-              Alert.alert('Erro', 'Não foi possível remover o produto.');
+              CustomAlert.alert('Erro', 'Não foi possível remover o produto.');
             }
           }
         }

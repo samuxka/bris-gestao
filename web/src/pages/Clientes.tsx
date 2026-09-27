@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { Edit2, Trash2, Search, Phone, MapPin } from 'lucide-react';
 
 export default function Clientes() {
   const { user } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const [clients, setClients] = useState<any[]>([]);
   const [ordersMap, setOrdersMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -25,50 +27,51 @@ export default function Clientes() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const handleImportFromOrders = async () => {
+  const handleImportFromOrders = () => {
     if (!user) return;
-    if (!window.confirm('Deseja buscar todos os pedidos passados e importar os clientes que ainda não estão salvos?')) return;
     
-    setIsImporting(true);
-    try {
-      const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid));
-      const snap = await getDocs(qOrders);
-      
-      const uniqueNames = new Set<string>();
-      snap.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.status === 'canceled' || data.status === 'unpaid') return;
-        const cName = data.clientName?.trim();
-        if (cName && cName.toLowerCase() !== 'cliente' && !cName.toLowerCase().startsWith('mesa')) {
-          uniqueNames.add(cName);
-        }
-      });
+    showConfirm('Deseja buscar todos os pedidos passados e importar os clientes que ainda não estão salvos?', async () => {
+      setIsImporting(true);
+      try {
+        const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid));
+        const snap = await getDocs(qOrders);
+        
+        const uniqueNames = new Set<string>();
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.status === 'canceled' || data.status === 'unpaid') return;
+          const cName = data.clientName?.trim();
+          if (cName && cName.toLowerCase() !== 'cliente' && !cName.toLowerCase().startsWith('mesa')) {
+            uniqueNames.add(cName);
+          }
+        });
 
-      // Filter out existing clients
-      const existingNames = new Set(clients.map(c => (c.name || '').toLowerCase()));
-      
-      let importedCount = 0;
-      for (const name of Array.from(uniqueNames)) {
-        if (!existingNames.has(name.toLowerCase())) {
-          await addDoc(collection(db, 'clients'), {
-            userId: user.uid,
-            name: name,
-            phone: '',
-            address: '',
-            notes: 'Importado automaticamente do histórico de pedidos',
-            createdAt: serverTimestamp()
-          });
-          importedCount++;
+        // Filter out existing clients
+        const existingNames = new Set(clients.map(c => (c.name || '').toLowerCase()));
+        
+        let importedCount = 0;
+        for (const name of Array.from(uniqueNames)) {
+          if (!existingNames.has(name.toLowerCase())) {
+            await addDoc(collection(db, 'clients'), {
+              userId: user.uid,
+              name: name,
+              phone: '',
+              address: '',
+              notes: 'Importado automaticamente do histórico de pedidos',
+              createdAt: serverTimestamp()
+            });
+            importedCount++;
+          }
         }
+        
+        showAlert(`Importação concluída! ${importedCount} novos clientes foram adicionados.`, 'Sucesso', 'success');
+      } catch (err) {
+        console.error(err);
+        showAlert('Erro ao importar clientes.', 'Erro', 'error');
+      } finally {
+        setIsImporting(false);
       }
-      
-      alert(`Importação concluída! ${importedCount} novos clientes foram adicionados.`);
-    } catch (err) {
-      console.error(err);
-      alert('Erro ao importar clientes.');
-    } finally {
-      setIsImporting(false);
-    }
+    }, 'Importar Clientes');
   };
 
   useEffect(() => {
@@ -167,21 +170,21 @@ export default function Clientes() {
       setShowModal(false);
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar cliente.');
+      showAlert('Erro ao salvar cliente.', 'Erro', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
+  const handleDelete = (id: string) => {
+    showConfirm('Tem certeza que deseja excluir este cliente?', async () => {
       try {
         await deleteDoc(doc(db, 'clients', id));
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir cliente.');
+        showAlert('Erro ao excluir cliente.', 'Erro', 'error');
       }
-    }
+    }, 'Excluir Cliente');
   };
 
   const filteredClients = clients.filter(c => 

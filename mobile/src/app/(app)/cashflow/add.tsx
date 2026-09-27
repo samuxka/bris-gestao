@@ -21,6 +21,7 @@ import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { uploadToCloudinary } from '../../../services/cloudinary';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 type TransferType = 'in' | 'out';
 
@@ -43,13 +44,13 @@ export default function AddCashflow() {
   }, [type]);
 
   const pickImage = () => {
-    Alert.alert('Anexar Comprovativo', 'Escolha a origem da imagem', [
+    CustomAlert.alert('Anexar Comprovativo', 'Escolha a origem da imagem', [
       {
         text: 'Tirar Foto',
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Atenção', 'Precisamos de permissão para aceder à câmara.');
+            CustomAlert.alert('Atenção', 'Precisamos de permissão para aceder à câmara.');
             return;
           }
           const result = await ImagePicker.launchCameraAsync({
@@ -86,12 +87,12 @@ export default function AddCashflow() {
 
   const handleSave = async () => {
     if (!description.trim()) {
-      Alert.alert('Atenção', 'Insira uma descrição.');
+      CustomAlert.alert('Atenção', 'Insira uma descrição.');
       return;
     }
     const numValue = parseFloat(value.replace(',', '.'));
     if (isNaN(numValue) || numValue <= 0) {
-      Alert.alert('Atenção', 'Insira um valor válido.');
+      CustomAlert.alert('Atenção', 'Insira um valor válido.');
       return;
     }
 
@@ -104,7 +105,7 @@ export default function AddCashflow() {
           if (url) {
             receiptUrls.push(url);
           } else {
-            Alert.alert('Erro', 'Não foi possível enviar um ou mais comprovantes.');
+            CustomAlert.alert('Erro', 'Não foi possível enviar um ou mais comprovantes.');
             setSaving(false);
             return;
           }
@@ -123,7 +124,7 @@ export default function AddCashflow() {
       router.back();
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
+      CustomAlert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
     } finally {
       setSaving(false);
     }

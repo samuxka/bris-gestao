@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { Edit2, Trash2, Search, AlertTriangle, Plus, Minus } from 'lucide-react';
 
 const CATEGORIES = ['Ingredientes', 'Bebidas', 'Embalagens', 'Outros'];
@@ -9,6 +10,7 @@ const UNITS = ['un', 'kg', 'g', 'L', 'ml', 'caixa', 'pacote'];
 
 export default function Estoque() {
   const { user } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -89,21 +91,21 @@ export default function Estoque() {
       setShowModal(false);
     } catch (err) {
       console.error(err);
-      alert('Erro ao salvar item.');
+      showAlert('Erro ao salvar item.', 'Erro', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este item do estoque?')) {
+  const handleDelete = (id: string) => {
+    showConfirm('Tem certeza que deseja excluir este item do estoque?', async () => {
       try {
         await deleteDoc(doc(db, 'inventory', id));
       } catch (err) {
         console.error(err);
-        alert('Erro ao excluir item.');
+        showAlert('Erro ao excluir item.', 'Erro', 'error');
       }
-    }
+    }, 'Excluir Item');
   };
 
   const handleAdjustQuantity = async (id: string, currentQty: number, change: number) => {

@@ -17,6 +17,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'fir
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 type Category = 'Doce' | 'Salgado' | 'Bebida' | 'Outro';
 
@@ -52,11 +53,11 @@ export default function AddRecipe() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Insira o nome da receita.');
+      CustomAlert.alert('Atenção', 'Insira o nome da receita.');
       return;
     }
     if (!ingredients.trim()) {
-      Alert.alert('Atenção', 'Insira os ingredientes.');
+      CustomAlert.alert('Atenção', 'Insira os ingredientes.');
       return;
     }
 
@@ -84,7 +85,7 @@ export default function AddRecipe() {
       router.back();
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
+      CustomAlert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
     } finally {
       setSaving(false);
     }

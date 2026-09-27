@@ -6,6 +6,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius } from '../../../theme/theme';
+import { CustomAlert } from '../../../utils/CustomAlert';
 
 export default function InventarioEdit() {
   const router = useRouter();
@@ -32,12 +33,12 @@ export default function InventarioEdit() {
           setQuantity(data.quantity.toString());
           setUnit(data.unit || 'g');
         } else {
-          Alert.alert('Erro', 'Produto não encontrado.');
+          CustomAlert.alert('Erro', 'Produto não encontrado.');
           router.back();
         }
       } catch (error) {
         console.error("Erro ao buscar produto:", error);
-        Alert.alert('Erro', 'Não foi possível carregar os dados.');
+        CustomAlert.alert('Erro', 'Não foi possível carregar os dados.');
       } finally {
         setFetching(false);
       }
@@ -47,7 +48,7 @@ export default function InventarioEdit() {
 
   const handleSave = async () => {
     if (!name || !price || !quantity) {
-      Alert.alert('Erro', 'Por favor preencha todos os campos.');
+      CustomAlert.alert('Erro', 'Por favor preencha todos os campos.');
       return;
     }
 
@@ -65,7 +66,7 @@ export default function InventarioEdit() {
       router.back();
     } catch (error) {
       console.error("Erro ao atualizar produto:", error);
-      Alert.alert('Erro', 'Não foi possível salvar as alterações.');
+      CustomAlert.alert('Erro', 'Não foi possível salvar as alterações.');
     } finally {
       setLoading(false);
     }

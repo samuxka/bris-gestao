@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingVi
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useAlert } from '../../context/AlertContext';
 import { colors, typography, spacing, radius } from '../../theme/theme';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -12,6 +13,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { setBiometricsEnabled, biometricsEnabled } = useAuth();
+  const { showConfirm } = useAlert();
   const [hasBiometrics, setHasBiometrics] = useState(false);
 
   useEffect(() => {
@@ -33,18 +35,14 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email, password);
       // Ask to enable biometrics if supported and not already enabled
       if (hasBiometrics && !biometricsEnabled) {
-        Alert.alert(
+        showConfirm(
           'Ativar Biometria',
           'Deseja usar a biometria para entrar mais rapidamente nas próximas vezes?',
-          [
-            { text: 'Não', style: 'cancel' },
-            { 
-              text: 'Sim', 
-              onPress: async () => {
-                await setBiometricsEnabled(true);
-              } 
-            }
-          ]
+          async () => {
+            await setBiometricsEnabled(true);
+          },
+          'Sim',
+          'Não'
         );
       }
     } catch (err: any) {

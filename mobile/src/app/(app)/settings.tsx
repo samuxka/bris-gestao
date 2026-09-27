@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme/theme';
+import { CustomAlert } from '../../utils/CustomAlert';
 
 export default function Settings() {
   const { signOut, user, userName, updateUserName, biometricsEnabled, setBiometricsEnabled } = useAuth();
@@ -19,15 +20,15 @@ export default function Settings() {
 
   const handleSaveName = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Por favor, insira um nome.');
+      CustomAlert.alert('Atenção', 'Por favor, insira um nome.');
       return;
     }
     setSaving(true);
     try {
       await updateUserName(name.trim());
-      Alert.alert('Sucesso', 'Nome atualizado com sucesso!');
+      CustomAlert.alert('Sucesso', 'Nome atualizado com sucesso!');
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar o nome.');
+      CustomAlert.alert('Erro', 'Não foi possível salvar o nome.');
     } finally {
       setSaving(false);
     }

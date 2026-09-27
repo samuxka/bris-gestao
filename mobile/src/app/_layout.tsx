@@ -55,10 +55,14 @@ function RootLayoutNav() {
   return <Slot />;
 }
 
+import { AlertProvider } from '../context/AlertContext';
+
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <AlertProvider>
+        <RootLayoutNav />
+      </AlertProvider>
     </AuthProvider>
   );
 }

@@ -7,6 +7,7 @@ import {
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
+import { useAlert } from '../context/AlertContext';
 import { format, subMonths, subDays, isSameMonth, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -27,6 +28,7 @@ const StatCard = ({ title, value, trend, trendValue }: { title: string, value: s
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { showAlert, showPrompt } = useAlert();
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -205,21 +207,23 @@ export default function Dashboard() {
 
   const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
-  const handleAddMoneyToCaixinha = async (caixinha: any) => {
-    const amountStr = window.prompt(`Quanto deseja depositar na caixinha "${caixinha.name}"?`);
-    if (!amountStr) return;
-    const amount = parseFloat(amountStr.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) return alert('Valor inválido');
+  const handleAddMoneyToCaixinha = (caixinha: any) => {
+    showPrompt(`Quanto deseja depositar na caixinha "${caixinha.name}"?`, '', async (amountStr) => {
+      if (!amountStr) return;
+      const amount = parseFloat(amountStr.replace(',', '.'));
+      if (isNaN(amount) || amount <= 0) return showAlert('Valor inválido', 'Erro', 'error');
 
-    try {
-      const caixinhaRef = doc(db, 'caixinhas', caixinha.id);
-      await updateDoc(caixinhaRef, {
-        current: (Number(caixinha.current) || 0) + amount
-      });
-    } catch(e) {
-      console.error(e);
-      alert('Erro ao depositar valor.');
-    }
+      try {
+        const caixinhaRef = doc(db, 'caixinhas', caixinha.id);
+        await updateDoc(caixinhaRef, {
+          current: (Number(caixinha.current) || 0) + amount
+        });
+        showAlert('Valor depositado com sucesso!', 'Sucesso', 'success');
+      } catch(e) {
+        console.error(e);
+        showAlert('Erro ao depositar valor.', 'Erro', 'error');
+      }
+    }, 'Depositar');
   };
 
   const now = startOfDay(new Date());
