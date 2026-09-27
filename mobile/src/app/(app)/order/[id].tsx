@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import { db, storage } from '../../../config/firebase';
 import { useAuth } from '../../../context/AuthContext';
 import { colors, typography, spacing, radius, shadows } from '../../../theme/theme';
@@ -109,6 +109,39 @@ export default function OrderDetails() {
         createdAt: serverTimestamp(),
         orderId: order.id,
       });
+
+      // Check loyalty card status to send email alert
+      if (order.clientName && order.clientName !== 'Cliente' && order.clientName !== 'Mesa') {
+        const qClient = query(collection(db, 'orders'), 
+          where('userId', '==', user.uid), 
+          where('clientName', '==', order.clientName),
+          where('status', '==', 'done')
+        );
+        const snapshot = await getDocs(qClient);
+        const doneCount = snapshot.docs.length; // Includes the one we just updated because we awaited updateDoc
+
+        if (doneCount > 0 && doneCount % 10 === 9) {
+          try {
+            await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                service_id: process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID,
+                template_id: process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID,
+                user_id: process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY,
+                template_params: {
+                  client_name: order.clientName,
+                  client_phone: order.clientPhone || 'Não informado',
+                  message: `Atenção: O cliente ${order.clientName} atingiu ${doneCount} pedidos e falta apenas 1 para ganhar o brinde!`
+                }
+              })
+            });
+            console.log('Alerta de fidelidade enviado por email.');
+          } catch(e) {
+            console.log('Erro ao enviar alerta de fidelidade:', e);
+          }
+        }
+      }
 
       setOrder({ ...order, status: 'done' });
       setShowPaymentModal(false);
