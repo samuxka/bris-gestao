@@ -16,11 +16,13 @@ export default function Produtos() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
-  // Form State
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [flavors, setFlavors] = useState('');
   const [description, setDescription] = useState('');
+  const [ingredients, setIngredients] = useState<{ id: string, name: string, cost: number }[]>([]);
+  const [newIngredientName, setNewIngredientName] = useState('');
+  const [newIngredientCost, setNewIngredientCost] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -42,13 +44,17 @@ export default function Produtos() {
       setPrice(String(product.price || '0').replace('.', ','));
       setFlavors(product.flavors ? product.flavors.join(', ') : '');
       setDescription(product.description || '');
+      setIngredients(product.ingredients?.map((i: any, idx: number) => ({ id: String(idx), name: i.name, cost: i.cost })) || []);
     } else {
       setEditingId(null);
       setName('');
       setPrice('');
       setFlavors('');
       setDescription('');
+      setIngredients([]);
     }
+    setNewIngredientName('');
+    setNewIngredientCost('');
     setShowModal(true);
   };
 
@@ -59,6 +65,8 @@ export default function Produtos() {
     setIsSubmitting(true);
     const parsedPrice = parseFloat(price.replace(',', '.')) || 0;
     const parsedFlavors = flavors.split(',').map(f => f.trim()).filter(f => f);
+    const parsedIngredients = ingredients.map(i => ({ name: i.name.trim(), cost: i.cost }));
+    const totalCost = parsedIngredients.reduce((acc, curr) => acc + curr.cost, 0);
 
     try {
       if (editingId) {
@@ -67,6 +75,8 @@ export default function Produtos() {
           price: parsedPrice,
           flavors: parsedFlavors,
           description: description.trim(),
+          ingredients: parsedIngredients,
+          cost: totalCost,
           updatedAt: serverTimestamp()
         });
       } else {
@@ -76,6 +86,8 @@ export default function Produtos() {
           price: parsedPrice,
           flavors: parsedFlavors,
           description: description.trim(),
+          ingredients: parsedIngredients,
+          cost: totalCost,
           createdAt: serverTimestamp()
         });
       }
@@ -97,6 +109,18 @@ export default function Produtos() {
         showAlert('Erro ao excluir produto.', 'Erro', 'error');
       }
     }, 'Excluir Produto');
+  };
+
+  const handleAddIngredient = () => {
+    if (!newIngredientName.trim() || !newIngredientCost.trim()) return;
+    const cost = parseFloat(newIngredientCost.replace(',', '.')) || 0;
+    setIngredients([...ingredients, { id: Date.now().toString(), name: newIngredientName.trim(), cost }]);
+    setNewIngredientName('');
+    setNewIngredientCost('');
+  };
+
+  const handleRemoveIngredient = (id: string) => {
+    setIngredients(ingredients.filter(i => i.id !== id));
   };
 
   const filteredProducts = products.filter(p => 
@@ -136,17 +160,40 @@ export default function Produtos() {
                 <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Nome</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Preço (€)</th>
+                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Custo (€)</th>
+                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Margem</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Sabores</th>
-                  <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Descrição</th>
                   <th style={{ padding: '12px', color: 'var(--text-secondary)', fontWeight: 600, width: '100px' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map(p => (
+                {filteredProducts.map(p => {
+                  const cost = p.cost || 0;
+                  const price = Number(p.price) || 0;
+                  const profit = price - cost;
+                  const marginPercent = price > 0 ? (profit / price) * 100 : 0;
+                  
+                  return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                     <td style={{ padding: '16px 12px', fontWeight: 500 }}>{p.name}</td>
                     <td style={{ padding: '16px 12px', fontWeight: 600, color: 'var(--accent-color)' }}>
-                      € {(Number(p.price) || 0).toFixed(2).replace('.', ',')}
+                      € {price.toFixed(2).replace('.', ',')}
+                    </td>
+                    <td style={{ padding: '16px 12px', color: 'var(--danger-color)' }}>
+                      {cost > 0 ? `€ ${cost.toFixed(2).replace('.', ',')}` : '-'}
+                    </td>
+                    <td style={{ padding: '16px 12px' }}>
+                      {cost > 0 ? (
+                        <span style={{ 
+                          color: marginPercent >= 50 ? 'var(--success-color)' : marginPercent >= 20 ? '#f59e0b' : 'var(--danger-color)',
+                          fontWeight: 'bold',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: marginPercent >= 50 ? 'rgba(16, 185, 129, 0.1)' : marginPercent >= 20 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+                        }}>
+                          {marginPercent.toFixed(0)}%
+                        </span>
+                      ) : '-'}
                     </td>
                     <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>
                       {p.flavors && p.flavors.length > 0 ? (
@@ -157,7 +204,6 @@ export default function Produtos() {
                         </div>
                       ) : '-'}
                     </td>
-                    <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>{p.description || '-'}</td>
                     <td style={{ padding: '16px 12px', display: 'flex', gap: '8px' }}>
                       <button onClick={() => openModal(p)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--accent-color)' }} title="Editar">
                         <Edit2 size={18} />
@@ -167,7 +213,8 @@ export default function Produtos() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -205,6 +252,53 @@ export default function Produtos() {
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder="Ex: 2,50"
                 />
+              </div>
+
+              <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.875rem', fontWeight: 'bold' }}>Ingredientes e Custos (opcional)</label>
+                
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input 
+                    type="text"
+                    style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                    value={newIngredientName}
+                    onChange={(e) => setNewIngredientName(e.target.value)}
+                    placeholder="Ex: Massa"
+                  />
+                  <input 
+                    type="text"
+                    style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                    value={newIngredientCost}
+                    onChange={(e) => setNewIngredientCost(e.target.value)}
+                    placeholder="Custo (€)"
+                  />
+                  <button type="button" onClick={handleAddIngredient} className="btn-secondary" style={{ padding: '8px 12px' }}>
+                    +
+                  </button>
+                </div>
+
+                {ingredients.length > 0 && (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 12px 0' }}>
+                    {ingredients.map(ing => (
+                      <li key={ing.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                        <span style={{ fontSize: '0.875rem' }}>{ing.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <strong style={{ fontSize: '0.875rem' }}>€ {ing.cost.toFixed(2).replace('.', ',')}</strong>
+                          <button type="button" onClick={() => handleRemoveIngredient(ing.id)} style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '8px' }}>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Custo Total:</span>
+                  <strong style={{ color: 'var(--danger-color)' }}>
+                    € {ingredients.reduce((acc, curr) => acc + curr.cost, 0).toFixed(2).replace('.', ',')}
+                  </strong>
+                </div>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
