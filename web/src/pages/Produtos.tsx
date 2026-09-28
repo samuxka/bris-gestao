@@ -260,14 +260,14 @@ export default function Produtos() {
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
                   <input 
                     type="text"
-                    style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                    style={{ flex: 2, minWidth: 0, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
                     value={newIngredientName}
                     onChange={(e) => setNewIngredientName(e.target.value)}
                     placeholder="Ex: Massa"
                   />
                   <input 
                     type="text"
-                    style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
                     value={newIngredientCost}
                     onChange={(e) => setNewIngredientCost(e.target.value)}
                     placeholder="Custo (€)"
