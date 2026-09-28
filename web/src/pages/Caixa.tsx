@@ -11,8 +11,8 @@ import {
 
 const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
-const StatCard = ({ title, value }: { title: string, value: string }) => (
-  <div className="card caixa-stat-card">
+const StatCard = ({ title, value, className = '' }: { title: string, value: string, className?: string }) => (
+  <div className={`card caixa-stat-card ${className}`}>
     <h3 className="card-title">{title}</h3>
     <div className="stat-value">{value}</div>
   </div>
@@ -279,7 +279,65 @@ export default function Caixa() {
         <StatCard title="Banco" value={formatCurrency(bancoAtual)} />
         <StatCard title="Físico (Cofre)" value={formatCurrency(cofreAtual)} />
         <StatCard title="Entradas Mês" value={formatCurrency(entradasMes)} />
-        <StatCard title="Despesas Mês" value={formatCurrency(despesasMes)} />
+
+        <div className="caixa-left-column">
+          <StatCard title="Despesas Mês" value={formatCurrency(despesasMes)} className="no-span" />
+
+          <div className="card flex-half" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title">Termômetro de Gastos</h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              Despesas este mês: <strong>{formatCurrency(despesasMes)}</strong>
+            </p>
+            <p 
+              onClick={handleSetLimit}
+              style={{ fontSize: '0.875rem', color: 'var(--accent-color)', textAlign: 'center', cursor: 'pointer', marginTop: '8px', fontWeight: 500 }}
+              title="Clique para alterar"
+            >
+              Limite: {formatCurrency(expenseLimit)} ✎
+            </p>
+            
+            <div className="thermometer-container" style={{ flex: 1, marginTop: '16px' }}>
+              <div className="thermometer-glass">
+                <div className="thermometer-mercury" style={{ height: `${thermoPercent}%`, backgroundColor: thermoPercent >= 100 ? '#b91c1c' : 'var(--danger-color)' }}></div>
+              </div>
+              <div className="thermometer-bulb" style={{ backgroundColor: thermoPercent >= 100 ? '#b91c1c' : 'var(--danger-color)' }}>
+                {Math.round((despesasMes / expenseLimit) * 100)}%
+              </div>
+            </div>
+          </div>
+
+          <div className="card flex-half" style={{ display: 'flex', flexDirection: 'column' }}>
+            <h3 className="card-title">Gastos por Categoria</h3>
+            <div style={{ flex: 1, minHeight: 150 }}>
+              {pieData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={65}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {pieData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any) => formatCurrency(Number(value))}
+                      contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '40px' }}>Sem despesas no período selecionado.</p>
+              )}
+            </div>
+          </div>
+        </div>
 
         <div className="transfers-full-card-wrapper">
           <div className="card transfers-full-card">
@@ -346,61 +404,6 @@ export default function Caixa() {
           </div>
         </div>
 
-        <div className="caixa-right-column">
-          <div className="card">
-            <h3 className="card-title">Gastos por Categoria</h3>
-            <div style={{ height: 250 }}>
-              {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value: any) => formatCurrency(Number(value))}
-                      contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '40px' }}>Sem despesas no período selecionado.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <h3 className="card-title">Termômetro de Gastos</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-              Despesas este mês: <strong>{formatCurrency(despesasMes)}</strong>
-            </p>
-            <p 
-              onClick={handleSetLimit}
-              style={{ fontSize: '0.875rem', color: 'var(--accent-color)', textAlign: 'center', cursor: 'pointer', marginTop: '8px', fontWeight: 500 }}
-              title="Clique para alterar"
-            >
-              Limite: {formatCurrency(expenseLimit)} ✎
-            </p>
-            
-            <div className="thermometer-container">
-              <div className="thermometer-glass">
-                <div className="thermometer-mercury" style={{ height: `${thermoPercent}%`, backgroundColor: thermoPercent >= 100 ? '#b91c1c' : 'var(--danger-color)' }}></div>
-              </div>
-              <div className="thermometer-bulb" style={{ backgroundColor: thermoPercent >= 100 ? '#b91c1c' : 'var(--danger-color)' }}>
-                {Math.round((despesasMes / expenseLimit) * 100)}%
-              </div>
-            </div>
-          </div>
         </div>
 
       </div>
