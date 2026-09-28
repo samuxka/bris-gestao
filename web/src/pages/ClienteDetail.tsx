@@ -263,7 +263,7 @@ export default function ClienteDetail() {
                           </span>
                         </td>
                         <td style={{ padding: '16px 12px', color: 'var(--text-secondary)' }}>
-                          {(order.items || []).map((item: any) => `${item.quantity}x ${item.name}`).join(', ')}
+                          {Array.isArray(order.items) ? order.items.map((item: any) => `${item.quantity || 1}x ${item.name || 'Item'}`).join(', ') : 'Itens não detalhados'}
                         </td>
                         <td style={{ padding: '16px 12px', fontWeight: 'bold' }}>
                           {formatCurrency(Number(order.total))}
