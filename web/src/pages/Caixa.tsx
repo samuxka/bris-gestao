@@ -404,8 +404,6 @@ export default function Caixa() {
           </div>
         </div>
 
-        </div>
-
       </div>
 
       <div style={{ marginTop: '32px' }}>
