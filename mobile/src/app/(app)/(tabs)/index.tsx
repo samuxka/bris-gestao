@@ -45,7 +45,7 @@ export default function Home() {
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
-  const [balance, setBalance] = useState<number | null>(null);
+  const [salesThisMonth, setSalesThisMonth] = useState(0);
   const [totalPending, setTotalPending] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +90,19 @@ export default function Home() {
     );
     const unsubRecent = onSnapshot(qRecent, (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+      
+      const now = new Date();
+      let monthSales = 0;
+      docs.forEach(o => {
+        if (o.status === 'done' || o.status === 'unpaid') {
+          const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+          if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+            monthSales++;
+          }
+        }
+      });
+      setSalesThisMonth(monthSales);
+
       docs.sort((a, b) => {
         const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.now();
         const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.now();
@@ -111,11 +124,6 @@ export default function Home() {
         return timeB - timeA;
       });
       setRecentExpenses(items.slice(0, 5));
-      // Compute balance
-      const total = items.reduce((acc, cur) => {
-        return cur.type === 'in' ? acc + cur.value : acc - cur.value;
-      }, 0);
-      setBalance(total);
     }, (err) => console.error("Home expenses error:", err));
 
     return () => {
@@ -158,9 +166,9 @@ export default function Home() {
         contentContainerStyle={styles.cardsContent}
       >
         <View style={[styles.card, styles.balanceCard]}>
-          <Text style={styles.balanceLabel}>Saldo em Caixa</Text>
+          <Text style={styles.balanceLabel}>Vendas (Mês)</Text>
           <Text style={styles.balanceValue}>
-            {balance !== null ? `€ ${balance.toFixed(2)}` : '---'}
+            {salesThisMonth}
           </Text>
         </View>
         <View style={styles.card}>

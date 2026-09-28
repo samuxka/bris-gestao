@@ -9,19 +9,19 @@ import { db } from '../config/firebase';
 import { uploadToCloudinary } from '../services/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { format, subDays, isSameMonth, startOfDay, isSameDay, isSameYear, differenceInDays } from 'date-fns';
+import { format, subDays, subMonths, subYears, isSameMonth, startOfDay, isSameDay, isSameYear, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const StatCard = ({ title, value, trend, trendValue }: { title: string, value: string, trend?: 'up' | 'down' | 'neutral', trendValue?: string }) => (
+const StatCard = ({ title, value, trendColor, trendDirection, trendValue }: { title: string, value: string, trendColor?: 'success' | 'danger' | 'neutral', trendDirection?: 'up' | 'down' | 'neutral', trendValue?: string }) => (
   <div className="card stat-card">
     <h3 className="card-title">{title}</h3>
     <div className="stat-value">{value}</div>
     {trendValue && (
       <div className="stat-trend">
-        {trend === 'up' ? (
-          <span className="trend-up"><ArrowUpRight size={16} /> {trendValue}</span>
-        ) : trend === 'down' ? (
-          <span className="trend-down"><ArrowDownRight size={16} /> {trendValue}</span>
+        {trendColor !== 'neutral' && trendDirection && trendDirection !== 'neutral' ? (
+          <span className={trendColor === 'success' ? 'trend-up' : 'trend-down'}>
+            {trendDirection === 'up' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />} {trendValue}
+          </span>
         ) : (
           <span style={{ color: 'var(--text-secondary)' }}>{trendValue}</span>
         )}
@@ -42,6 +42,9 @@ export default function Dashboard() {
   const [receita, setReceita] = useState(0);
   const [despesas, setDespesas] = useState(0);
   const [lucro, setLucro] = useState(0);
+  const [receitaPerc, setReceitaPerc] = useState(0);
+  const [despesasPerc, setDespesasPerc] = useState(0);
+  const [lucroPerc, setLucroPerc] = useState(0);
   const [aReceber, setAReceber] = useState(0);
   const [chartData, setChartData] = useState<any[]>([]);
 
@@ -51,6 +54,12 @@ export default function Dashboard() {
   const [bills, setBills] = useState<any[]>([]);
   
   const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
+
+  const formatPerc = (perc: number) => {
+    if (perc === 0) return 'Igual ao anterior';
+    const sign = perc > 0 ? '+' : '';
+    return `${sign}${perc.toFixed(1)}% vs anterior`;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -117,9 +126,14 @@ export default function Dashboard() {
     const unsubCashflow = onSnapshot(qCashflow, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
       const now = new Date();
+      const prevDay = subDays(now, 1);
+      const prevMonth = subMonths(now, 1);
+      const prevYear = subYears(now, 1);
       
       let calcReceita = 0;
       let calcDespesa = 0;
+      let calcReceitaPrev = 0;
+      let calcDespesaPrev = 0;
       const dailyMap: Record<string, { dateObj: Date, entradas: number, saidas: number }> = {};
 
       docs.forEach(t => {
@@ -128,18 +142,33 @@ export default function Dashboard() {
         const dateObj = t.createdAt?.toDate?.() || new Date();
         
         let include = false;
-        if (period === 'day') include = isSameDay(dateObj, now);
-        else if (period === 'month') include = isSameMonth(dateObj, now);
-        else if (period === 'year') include = isSameYear(dateObj, now);
-        else include = true; // all
+        let includePrev = false;
+
+        if (period === 'day') {
+          include = isSameDay(dateObj, now);
+          includePrev = isSameDay(dateObj, prevDay);
+        } else if (period === 'month') {
+          include = isSameMonth(dateObj, now);
+          includePrev = isSameMonth(dateObj, prevMonth);
+        } else if (period === 'year') {
+          include = isSameYear(dateObj, now);
+          includePrev = isSameYear(dateObj, prevYear);
+        } else {
+          include = true;
+          includePrev = false;
+        }
 
         if (include) {
           if (isIncome) calcReceita += val;
           else calcDespesa += val;
         }
+        if (includePrev) {
+          if (isIncome) calcReceitaPrev += val;
+          else calcDespesaPrev += val;
+        }
 
         // Gráfico sempre por dia (dentro do período selecionado)
-        if (include || period === 'all') { // se for all, mostra os ultimos 30 dias no grafico por padrão ou agrupa por mes? vamos manter diário pra manter simples, mas se for year pode ficar grande. Vamos deixar diário se incluir
+        if (include || period === 'all') {
            const dayKey = format(dateObj, 'yyyy-MM-dd');
            if (!dailyMap[dayKey]) dailyMap[dayKey] = { dateObj: startOfDay(dateObj), entradas: 0, saidas: 0 };
            if (isIncome) dailyMap[dayKey].entradas += val;
@@ -147,9 +176,20 @@ export default function Dashboard() {
         }
       });
 
+      const calcLucro = calcReceita - calcDespesa;
+      const calcLucroPrev = calcReceitaPrev - calcDespesaPrev;
+
+      const getPerc = (cur: number, prev: number) => {
+         if (prev === 0) return cur > 0 ? 100 : 0;
+         return ((cur - prev) / Math.abs(prev)) * 100;
+      };
+
       setReceita(calcReceita);
       setDespesas(calcDespesa);
-      setLucro(calcReceita - calcDespesa);
+      setLucro(calcLucro);
+      setReceitaPerc(getPerc(calcReceita, calcReceitaPrev));
+      setDespesasPerc(getPerc(calcDespesa, calcDespesaPrev));
+      setLucroPerc(getPerc(calcLucro, calcLucroPrev));
 
       let chartArr = Object.values(dailyMap).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
       
@@ -281,25 +321,29 @@ export default function Dashboard() {
         <StatCard
           title="Receita"
           value={formatCurrency(receita)}
-          trend="neutral"
-          trendValue={period === 'all' ? 'Total histórico' : `No período (${period})`}
+          trendColor={period === 'all' ? 'neutral' : receitaPerc > 0 ? 'success' : receitaPerc < 0 ? 'danger' : 'neutral'}
+          trendDirection={receitaPerc > 0 ? 'up' : receitaPerc < 0 ? 'down' : 'neutral'}
+          trendValue={period === 'all' ? 'Total histórico' : formatPerc(receitaPerc)}
         />
         <StatCard
           title="Despesas"
           value={formatCurrency(despesas)}
-          trend="neutral"
-          trendValue={period === 'all' ? 'Total histórico' : `No período (${period})`}
+          trendColor={period === 'all' ? 'neutral' : despesasPerc > 0 ? 'danger' : despesasPerc < 0 ? 'success' : 'neutral'}
+          trendDirection={despesasPerc > 0 ? 'up' : despesasPerc < 0 ? 'down' : 'neutral'}
+          trendValue={period === 'all' ? 'Total histórico' : formatPerc(despesasPerc)}
         />
         <StatCard
           title="Lucro"
           value={formatCurrency(lucro)}
-          trend={lucro > 0 ? 'up' : lucro < 0 ? 'down' : 'neutral'}
-          trendValue={lucro >= 0 ? 'Positivo' : 'Negativo'}
+          trendColor={period === 'all' ? (lucro > 0 ? 'success' : lucro < 0 ? 'danger' : 'neutral') : lucroPerc > 0 ? 'success' : lucroPerc < 0 ? 'danger' : 'neutral'}
+          trendDirection={period === 'all' ? 'neutral' : lucroPerc > 0 ? 'up' : lucroPerc < 0 ? 'down' : 'neutral'}
+          trendValue={period === 'all' ? (lucro >= 0 ? 'Positivo' : 'Negativo') : formatPerc(lucroPerc)}
         />
         <StatCard
           title="A Receber"
           value={formatCurrency(aReceber)}
-          trend="neutral"
+          trendColor="neutral"
+          trendDirection="neutral"
           trendValue="Pedidos não pagos"
         />
 

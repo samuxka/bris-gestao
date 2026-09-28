@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useAlert } from '../context/AlertContext';
-import { ArrowRight, ArrowLeft, Trash2 } from 'lucide-react';
-import { format, isSameMonth } from 'date-fns';
+import { ArrowRight, ArrowLeft, Trash2, CheckCircle, ChevronRight, ChevronDown } from 'lucide-react';
+import { format, isSameMonth, addDays, addMonths, addYears, startOfMonth, endOfMonth } from 'date-fns';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
 } from 'recharts';
+import { uploadToCloudinary } from '../services/cloudinary';
 
 const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
@@ -20,8 +21,8 @@ const StatCard = ({ title, value, className = '' }: { title: string, value: stri
 
 const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#64748b'];
 
-const EXPENSE_CATEGORIES = ['Material', 'Equipamento', 'Salário', 'Impostos', 'Marketing', 'Outros'];
-const INCOME_CATEGORIES = ['Venda', 'Investimento', 'Outros'];
+const EXPENSE_CATEGORIES = ['Material', 'Equipamento', 'Salário', 'Impostos', 'Marketing', 'Retirada Pessoal', 'Ajuste de Caixa', 'Outros'];
+const INCOME_CATEGORIES = ['Venda', 'Investimento', 'Ajuste de Caixa', 'Outros'];
 
 export default function Caixa() {
   const { user } = useAuth();
@@ -42,6 +43,23 @@ export default function Caixa() {
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [bills, setBills] = useState<any[]>([]);
+  
+  // Bills State
+  const [showAddBillModal, setShowAddBillModal] = useState(false);
+  const [billName, setBillName] = useState('');
+  const [billAmount, setBillAmount] = useState('');
+  const [billDueDate, setBillDueDate] = useState('');
+  const [billRecurring, setBillRecurring] = useState(false);
+  const [billFrequency, setBillFrequency] = useState('mensal');
+  const [isSubmittingBill, setIsSubmittingBill] = useState(false);
+
+  // Pay Bill State
+  const [showPayBillModal, setShowPayBillModal] = useState(false);
+  const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [payMethod, setPayMethod] = useState<'dinheiro' | 'transferencia'>('transferencia');
+  const [payReceipt, setPayReceipt] = useState<File | null>(null);
+  const [isPayingBill, setIsPayingBill] = useState(false);
+
   const [addType, setAddType] = useState<'in' | 'out' | 'transfer'>('out');
   const [addAccount, setAddAccount] = useState<'banco' | 'cofre'>('banco');
   const [transferDirection, setTransferDirection] = useState<'banco_to_cofre' | 'cofre_to_banco'>('banco_to_cofre');
@@ -55,6 +73,15 @@ export default function Caixa() {
   const [caixinhaName, setCaixinhaName] = useState('');
   const [caixinhaTarget, setCaixinhaTarget] = useState('');
   const [isSubmittingCaixinha, setIsSubmittingCaixinha] = useState(false);
+
+  // DRE Filter State
+  const [dreStartDate, setDreStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [dreEndDate, setDreEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [dreExpanded, setDreExpanded] = useState<Record<string, boolean>>({});
+
+  const toggleDreRow = (rowKey: string) => {
+    setDreExpanded(prev => ({ ...prev, [rowKey]: !prev[rowKey] }));
+  };
 
   useEffect(() => {
     const savedLimit = localStorage.getItem('expenseLimit');
@@ -214,32 +241,122 @@ export default function Caixa() {
     }
   };
 
-  const handleAddBill = () => {
-    showPrompt('Qual o nome da conta a pagar?', '', (name) => {
-      if (!name) return;
-      showPrompt('Qual o valor da conta? (ex: 50.00)', '', async (amount) => {
-        const val = parseFloat(amount.replace(',', '.'));
-        if (isNaN(val) || val <= 0) return showAlert('Valor inválido', 'Erro', 'error');
-        showPrompt('Data de vencimento (DD/MM/AAAA)', '', async (dateStr) => {
-          if (!dateStr) return;
-          const [d, m, y] = dateStr.split('/');
-          const dueDate = new Date(Number(y), Number(m)-1, Number(d), 12, 0, 0);
-          try {
-            await addDoc(collection(db, 'billsToPay'), {
-              userId: user!.uid,
-              name,
-              amount: val,
-              dueDate,
-              paid: false,
-              createdAt: serverTimestamp()
-            });
-            showAlert('Conta a pagar adicionada!', 'Sucesso', 'success');
-          } catch (e) {
-            showAlert('Erro ao adicionar conta', 'Erro', 'error');
-          }
-        });
+  const handleAddBillSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !billName.trim() || !billAmount.trim() || !billDueDate.trim()) return;
+
+    const val = parseFloat(billAmount.replace(',', '.'));
+    if (isNaN(val) || val <= 0) return showAlert('Valor inválido', 'Erro', 'error');
+
+    const [y, m, d] = billDueDate.split('-');
+    const dueDate = new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0);
+
+    setIsSubmittingBill(true);
+    try {
+      await addDoc(collection(db, 'billsToPay'), {
+        userId: user.uid,
+        name: billName.trim(),
+        amount: val,
+        dueDate,
+        paid: false,
+        recurring: billRecurring,
+        frequency: billRecurring ? billFrequency : null,
+        createdAt: serverTimestamp()
       });
-    });
+      showAlert('Conta a pagar adicionada!', 'Sucesso', 'success');
+      setShowAddBillModal(false);
+      setBillName('');
+      setBillAmount('');
+      setBillDueDate('');
+      setBillRecurring(false);
+      setBillFrequency('mensal');
+    } catch (e) {
+      console.error(e);
+      showAlert('Erro ao adicionar conta', 'Erro', 'error');
+    } finally {
+      setIsSubmittingBill(false);
+    }
+  };
+
+  const getNextDueDate = (currentDate: Date, frequency: string) => {
+    switch (frequency) {
+      case 'diaria': return addDays(currentDate, 1);
+      case 'semanal': return addDays(currentDate, 7);
+      case 'quinzenal': return addDays(currentDate, 15);
+      case 'mensal': return addMonths(currentDate, 1);
+      case 'bimestral': return addMonths(currentDate, 2);
+      case 'trimestral': return addMonths(currentDate, 3);
+      case 'semestral': return addMonths(currentDate, 6);
+      case 'anual': return addYears(currentDate, 1);
+      default: return addMonths(currentDate, 1);
+    }
+  };
+
+  const handlePayBillSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedBill) return;
+
+    setIsPayingBill(true);
+    try {
+      let receiptUrl = null;
+      if (payReceipt) {
+        receiptUrl = await uploadToCloudinary(payReceipt);
+        if (!receiptUrl) throw new Error("Erro ao fazer upload do comprovante");
+      }
+
+      await addDoc(collection(db, 'cashflow'), {
+        userId: user.uid,
+        description: `Pagamento: ${selectedBill.name}`,
+        type: 'out',
+        account: payMethod === 'dinheiro' ? 'cofre' : 'banco',
+        category: 'Outros',
+        value: Number(selectedBill.amount),
+        receiptUrls: receiptUrl ? [receiptUrl] : [],
+        createdAt: serverTimestamp()
+      });
+
+      await updateDoc(doc(db, 'billsToPay', selectedBill.id), {
+        paid: true,
+        payMethod,
+        receiptUrl: receiptUrl || null,
+        paidAt: serverTimestamp()
+      });
+
+      if (selectedBill.recurring && selectedBill.frequency) {
+        const nextDueDate = getNextDueDate(selectedBill.dueDate?.toDate() || new Date(), selectedBill.frequency);
+        await addDoc(collection(db, 'billsToPay'), {
+          userId: user.uid,
+          name: selectedBill.name,
+          amount: selectedBill.amount,
+          dueDate: nextDueDate,
+          paid: false,
+          recurring: selectedBill.recurring,
+          frequency: selectedBill.frequency,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      showAlert('Conta paga com sucesso!', 'Sucesso', 'success');
+      setShowPayBillModal(false);
+      setSelectedBill(null);
+      setPayReceipt(null);
+      setPayMethod('transferencia');
+    } catch (e: any) {
+      console.error(e);
+      showAlert(e.message || 'Erro ao pagar conta', 'Erro', 'error');
+    } finally {
+      setIsPayingBill(false);
+    }
+  };
+
+  const handleDeleteTransfer = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta movimentação?")) return;
+    try {
+      await deleteDoc(doc(db, 'cashflow', id));
+      showAlert('Movimentação excluída com sucesso!', 'Sucesso', 'success');
+    } catch (e) {
+      showAlert('Erro ao excluir movimentação', 'Erro', 'error');
+    }
   };
 
   const handleDeleteBill = async (id: string) => {
@@ -249,6 +366,103 @@ export default function Caixa() {
     } catch (e) {
       showAlert('Erro ao excluir conta', 'Erro', 'error');
     }
+  };
+
+  const dreTransfers = transfers.filter(t => {
+    if (t.type === 'transfer') return false; 
+    const d = t.createdAt?.toDate?.();
+    if (!d) return false;
+    
+    const start = dreStartDate ? new Date(dreStartDate + 'T00:00:00') : null;
+    const end = dreEndDate ? new Date(dreEndDate + 'T23:59:59') : null;
+    
+    if (start && d < start) return false;
+    if (end && d > end) return false;
+    
+    return true;
+  });
+
+  let receitaFaturamento = 0;
+  let custoVariavel = 0;
+  let despesasFixas = 0;
+  let investimentos = 0;
+  let movNaoOperacionais = 0;
+
+  const dreTransactions = {
+    receitaFaturamento: [] as any[],
+    custoVariavel: [] as any[],
+    despesasFixas: [] as any[],
+    investimentos: [] as any[],
+    movNaoOperacionais: [] as any[]
+  };
+
+  dreTransfers.forEach(t => {
+    const val = Number(t.value) || 0;
+    const cat = t.category;
+    if (t.type === 'in') {
+      if (cat === 'Venda') { receitaFaturamento += val; dreTransactions.receitaFaturamento.push(t); }
+      else { movNaoOperacionais += val; dreTransactions.movNaoOperacionais.push(t); }
+    } else if (t.type === 'out') {
+      if (cat === 'Material' || cat === 'Impostos') { custoVariavel += val; dreTransactions.custoVariavel.push(t); }
+      else if (cat === 'Equipamento') { investimentos += val; dreTransactions.investimentos.push(t); }
+      else if (cat === 'Retirada Pessoal' || cat === 'Ajuste de Caixa') { 
+        movNaoOperacionais -= val; 
+        dreTransactions.movNaoOperacionais.push(t); 
+      }
+      else { despesasFixas += val; dreTransactions.despesasFixas.push(t); }
+    }
+  });
+
+  const margemContribuicao = receitaFaturamento - custoVariavel;
+  const lucroOpAntesInv = margemContribuicao - despesasFixas;
+  const lucroOperacional = lucroOpAntesInv - investimentos;
+  const resultadoLiquido = lucroOperacional + movNaoOperacionais;
+
+  const renderDreRow = (title: string, value: number, rowKey: keyof typeof dreTransactions, isExpense = false) => {
+    const isExpanded = dreExpanded[rowKey];
+    let valColor = 'inherit';
+    if (rowKey === 'receitaFaturamento') valColor = 'var(--success-color)';
+    else if (rowKey === 'movNaoOperacionais') valColor = value >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
+    else if (isExpense) valColor = 'var(--danger-color)';
+
+    const transactions = dreTransactions[rowKey];
+
+    return (
+      <React.Fragment key={rowKey}>
+        <tr style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => toggleDreRow(rowKey)}>
+          <td style={{ padding: '12px', fontWeight: rowKey === 'receitaFaturamento' ? 'bold' : 'normal' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              {title}
+            </div>
+          </td>
+          <td style={{ padding: '12px', textAlign: 'right', color: valColor }}>
+            {rowKey === 'movNaoOperacionais' ? (value >= 0 ? '+' : '') : ''}{formatCurrency(value)}
+          </td>
+        </tr>
+        {isExpanded && transactions.length > 0 && (
+          <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+            <td colSpan={2} style={{ padding: '0 12px 12px 42px' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {transactions.map((t: any) => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed var(--border-color)' }}>
+                    <span>{t.createdAt?.toDate() ? format(t.createdAt.toDate(), 'dd/MM') : ''} - <strong>{t.description}</strong> ({t.account === 'cofre' ? 'Cofre' : 'Banco'})</span>
+                    <span style={{ color: t.type === 'in' ? 'var(--success-color)' : 'var(--danger-color)' }}>{t.type === 'in' ? '+' : '-'} {formatCurrency(Number(t.value))}</span>
+                  </div>
+                ))}
+              </div>
+            </td>
+          </tr>
+        )}
+        {isExpanded && transactions.length === 0 && (
+           <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+            <td colSpan={2} style={{ padding: '8px 12px 12px 42px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Nenhuma movimentação neste período.
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
   };
 
   return (
@@ -357,10 +571,13 @@ export default function Caixa() {
                   <option value="Salário">Salário</option>
                   <option value="Impostos">Impostos</option>
                   <option value="Marketing">Marketing</option>
+                  <option value="Retirada Pessoal">Retirada Pessoal</option>
+                  <option value="Ajuste de Caixa">Ajuste de Caixa</option>
                 </optgroup>
                 <optgroup label="Entradas">
                   <option value="Venda">Venda</option>
                   <option value="Investimento">Investimento</option>
+                  <option value="Ajuste de Caixa">Ajuste de Caixa</option>
                 </optgroup>
                 <option value="Outros">Outros</option>
               </select>
@@ -391,8 +608,13 @@ export default function Caixa() {
                         </p>
                       </div>
                     </div>
-                    <div className={`transfer-amount ${t.type === 'transfer' ? '' : isIncome ? 'income' : 'expense'}`} style={t.type === 'transfer' ? { color: 'var(--text-primary)' } : {}}>
-                      {t.type === 'transfer' ? '' : isIncome ? '+' : '-'} {formatCurrency(Number(t.value))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className={`transfer-amount ${t.type === 'transfer' ? '' : isIncome ? 'income' : 'expense'}`} style={t.type === 'transfer' ? { color: 'var(--text-primary)' } : {}}>
+                        {t.type === 'transfer' ? '' : isIncome ? '+' : '-'} {formatCurrency(Number(t.value))}
+                      </div>
+                      <button onClick={() => handleDeleteTransfer(t.id)} style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', padding: '4px' }} title="Excluir Movimentação">
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
                 );
@@ -409,8 +631,8 @@ export default function Caixa() {
       <div style={{ marginTop: '32px' }}>
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 className="card-title" style={{ margin: 0 }}>Contas a Pagar (Mensais)</h3>
-            <button className="btn-secondary" onClick={handleAddBill}>+ Adicionar Conta</button>
+            <h3 className="card-title" style={{ margin: 0 }}>Contas a Pagar</h3>
+            <button className="btn-secondary" onClick={() => setShowAddBillModal(true)}>+ Adicionar Conta</button>
           </div>
           {bills.length === 0 ? (
             <p style={{ color: 'var(--text-secondary)' }}>Nenhuma conta a pagar registrada.</p>
@@ -447,9 +669,16 @@ export default function Caixa() {
                           </span>
                         </td>
                         <td style={{ padding: '12px' }}>
-                          <button onClick={() => handleDeleteBill(b.id)} style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }} title="Excluir Conta">
-                            <Trash2 size={18} />
-                          </button>
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            {!b.paid && (
+                              <button onClick={() => { setSelectedBill(b); setShowPayBillModal(true); }} style={{ background: 'none', border: 'none', color: 'var(--success-color)', cursor: 'pointer' }} title="Pagar Conta">
+                                <CheckCircle size={18} />
+                              </button>
+                            )}
+                            <button onClick={() => handleDeleteBill(b.id)} style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }} title="Excluir Conta">
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -458,6 +687,60 @@ export default function Caixa() {
               </table>
             </div>
           )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: '32px' }}>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>Demonstração do Resultado (DRE)</h3>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.875rem' }}>De:</label>
+              <input 
+                type="date" 
+                className="filter-select"
+                value={dreStartDate}
+                onChange={e => setDreStartDate(e.target.value)}
+              />
+              <label style={{ fontSize: '0.875rem' }}>Até:</label>
+              <input 
+                type="date" 
+                className="filter-select"
+                value={dreEndDate}
+                onChange={e => setDreEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <tbody>
+                {renderDreRow('Receita / Faturamento', receitaFaturamento, 'receitaFaturamento')}
+                {renderDreRow('(-) Custo Variável', custoVariavel, 'custoVariavel', true)}
+                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Margem de Contribuição</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(margemContribuicao)}</td>
+                </tr>
+                {renderDreRow('(-) Despesas Fixas', despesasFixas, 'despesasFixas', true)}
+                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Lucro Operacional Antes dos Investimentos</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lucroOpAntesInv)}</td>
+                </tr>
+                {renderDreRow('(-) Investimentos', investimentos, 'investimentos', true)}
+                <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Lucro Operacional</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lucroOperacional)}</td>
+                </tr>
+                {renderDreRow('(+/-) Movimentações Não Operacionais', movNaoOperacionais, 'movNaoOperacionais')}
+                <tr style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
+                  <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--success-color)', paddingLeft: '36px' }}>(=) Resultado Líquido</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: resultadoLiquido >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                    {formatCurrency(resultadoLiquido)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -569,6 +852,108 @@ export default function Caixa() {
                 </button>
                 <button type="submit" disabled={isSubmitting} className="btn-primary">
                   {isSubmitting ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddBillModal && (
+        <div className="modal-overlay" onClick={() => setShowAddBillModal(false)}>
+          <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="card-title">Nova Conta a Pagar</h3>
+            <form onSubmit={handleAddBillSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Nome da Conta</label>
+                <input 
+                  type="text" required
+                  className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                  value={billName} onChange={(e) => setBillName(e.target.value)}
+                  placeholder="Ex: Aluguel"
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Valor (€)</label>
+                <input 
+                  type="number" step="0.01" required
+                  className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                  value={billAmount} onChange={(e) => setBillAmount(e.target.value)}
+                  placeholder="Ex: 500.00"
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Data de Vencimento</label>
+                <input 
+                  type="date" required
+                  className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                  value={billDueDate} onChange={(e) => setBillDueDate(e.target.value)}
+                />
+              </div>
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox" id="billRecurring"
+                  checked={billRecurring} onChange={(e) => setBillRecurring(e.target.checked)}
+                />
+                <label htmlFor="billRecurring" style={{ fontSize: '0.875rem' }}>Pagamento recorrente</label>
+              </div>
+              {billRecurring && (
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Frequência</label>
+                  <select 
+                    className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                    value={billFrequency} onChange={(e) => setBillFrequency(e.target.value)}
+                  >
+                    <option value="diaria">Diária</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quinzenal">Quinzenal</option>
+                    <option value="mensal">Mensal</option>
+                    <option value="bimestral">Bimestral</option>
+                    <option value="trimestral">Trimestral</option>
+                    <option value="semestral">Semestral</option>
+                    <option value="anual">Anual</option>
+                  </select>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowAddBillModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Cancelar</button>
+                <button type="submit" disabled={isSubmittingBill} className="btn-primary">
+                  {isSubmittingBill ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPayBillModal && selectedBill && (
+        <div className="modal-overlay" onClick={() => setShowPayBillModal(false)}>
+          <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="card-title">Pagar Conta: {selectedBill.name}</h3>
+            <p style={{ marginBottom: '16px', color: 'var(--text-secondary)' }}>Valor: <strong>{formatCurrency(Number(selectedBill.amount))}</strong></p>
+            <form onSubmit={handlePayBillSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Forma de Pagamento</label>
+                <select 
+                  className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                  value={payMethod} onChange={(e) => setPayMethod(e.target.value as 'dinheiro' | 'transferencia')}
+                >
+                  <option value="transferencia">Transferência (Banco)</option>
+                  <option value="dinheiro">Dinheiro (Cofre)</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Comprovante (Obrigatório)</label>
+                <input 
+                  type="file" accept="image/*,.pdf" required
+                  className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
+                  onChange={(e) => setPayReceipt(e.target.files ? e.target.files[0] : null)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowPayBillModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Cancelar</button>
+                <button type="submit" disabled={isPayingBill} className="btn-primary">
+                  {isPayingBill ? 'Processando...' : 'Confirmar Pagamento'}
                 </button>
               </div>
             </form>
