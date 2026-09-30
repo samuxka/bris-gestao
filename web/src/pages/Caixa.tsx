@@ -309,7 +309,7 @@ export default function Caixa() {
         description: `Pagamento: ${selectedBill.name}`,
         type: 'out',
         account: payMethod === 'dinheiro' ? 'cofre' : 'banco',
-        category: 'Outros',
+        category: 'Despesas Fixas',
         value: Number(selectedBill.amount),
         receiptUrls: receiptUrl ? [receiptUrl] : [],
         createdAt: serverTimestamp()
@@ -400,8 +400,14 @@ export default function Caixa() {
     const val = Number(t.value) || 0;
     const cat = t.category;
     if (t.type === 'in') {
-      if (cat === 'Venda') { receitaFaturamento += val; dreTransactions.receitaFaturamento.push(t); }
-      else { movNaoOperacionais += val; dreTransactions.movNaoOperacionais.push(t); }
+      if (cat === 'Venda' || cat === 'Vendas' || t.orderId || (t.description && t.description.startsWith('Pagamento - '))) { 
+        receitaFaturamento += val; 
+        dreTransactions.receitaFaturamento.push(t); 
+      }
+      else { 
+        movNaoOperacionais += val; 
+        dreTransactions.movNaoOperacionais.push(t); 
+      }
     } else if (t.type === 'out') {
       if (cat === 'Material' || cat === 'Impostos') { custoVariavel += val; dreTransactions.custoVariavel.push(t); }
       else if (cat === 'Equipamento') { investimentos += val; dreTransactions.investimentos.push(t); }
@@ -417,6 +423,12 @@ export default function Caixa() {
   const lucroOpAntesInv = margemContribuicao - despesasFixas;
   const lucroOperacional = lucroOpAntesInv - investimentos;
   const resultadoLiquido = lucroOperacional + movNaoOperacionais;
+
+  const calcDrePct = (val: number) => {
+    if (receitaFaturamento === 0) return '0,0%';
+    const pct = (Math.abs(val) / receitaFaturamento) * 100;
+    return pct.toFixed(1).replace('.', ',') + '%';
+  };
 
   const renderDreRow = (title: string, value: number, rowKey: keyof typeof dreTransactions, isExpense = false) => {
     const isExpanded = dreExpanded[rowKey];
@@ -438,6 +450,9 @@ export default function Caixa() {
           </td>
           <td style={{ padding: '12px', textAlign: 'right', color: valColor }}>
             {rowKey === 'movNaoOperacionais' ? (value >= 0 ? '+' : '') : ''}{formatCurrency(value)}
+            <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px', display: 'inline-block', minWidth: '45px' }}>
+              ({calcDrePct(value)})
+            </span>
           </td>
         </tr>
         {isExpanded && transactions.length > 0 && (
@@ -719,23 +734,41 @@ export default function Caixa() {
                 {renderDreRow('(-) Custo Variável', custoVariavel, 'custoVariavel', true)}
                 <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Margem de Contribuição</td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(margemContribuicao)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+                    {formatCurrency(margemContribuicao)}
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px', display: 'inline-block', minWidth: '45px', fontWeight: 'normal' }}>
+                      ({calcDrePct(margemContribuicao)})
+                    </span>
+                  </td>
                 </tr>
                 {renderDreRow('(-) Despesas Fixas', despesasFixas, 'despesasFixas', true)}
                 <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Lucro Operacional Antes dos Investimentos</td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lucroOpAntesInv)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+                    {formatCurrency(lucroOpAntesInv)}
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px', display: 'inline-block', minWidth: '45px', fontWeight: 'normal' }}>
+                      ({calcDrePct(lucroOpAntesInv)})
+                    </span>
+                  </td>
                 </tr>
                 {renderDreRow('(-) Investimentos', investimentos, 'investimentos', true)}
                 <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold', paddingLeft: '36px' }}>(=) Lucro Operacional</td>
-                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lucroOperacional)}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+                    {formatCurrency(lucroOperacional)}
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px', display: 'inline-block', minWidth: '45px', fontWeight: 'normal' }}>
+                      ({calcDrePct(lucroOperacional)})
+                    </span>
+                  </td>
                 </tr>
                 {renderDreRow('(+/-) Movimentações Não Operacionais', movNaoOperacionais, 'movNaoOperacionais')}
                 <tr style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold', color: 'var(--success-color)', paddingLeft: '36px' }}>(=) Resultado Líquido</td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: resultadoLiquido >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
                     {formatCurrency(resultadoLiquido)}
+                    <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px', display: 'inline-block', minWidth: '45px', color: 'var(--text-primary)', fontWeight: 'normal' }}>
+                      ({calcDrePct(resultadoLiquido)})
+                    </span>
                   </td>
                 </tr>
               </tbody>

@@ -34,6 +34,7 @@ interface Order {
   items: string;
   itemsDetail?: ItemDetail[];
   notes: string;
+  category: string;
   total: number;
   status: OrderStatus;
   createdAt: any;
@@ -99,6 +100,7 @@ export default function OrderDetails() {
         userId: user.uid,
         description: `Pagamento - ${order.clientName || 'Cliente'}`,
         type: 'in',
+        category: order.category || 'Venda',
         value: order.total,
         account: paymentMethod === 'dinheiro' ? 'cofre' : 'banco',
         receiptUrls: url ? [url] : [],

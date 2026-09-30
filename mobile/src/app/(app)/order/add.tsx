@@ -194,6 +194,7 @@ export default function AddOrder() {
         subtotal: getSubtotal(),
         discountAmount: getDiscountAmount(getSubtotal()),
         couponCode: appliedCoupon?.code || null,
+        category: 'Venda',
         total: getTotal(),
         status: 'pending',
         createdAt: serverTimestamp(),

@@ -279,6 +279,7 @@ export default function Dashboard() {
             value: amount,
             description: `Pagamento de Conta: ${title}`,
             account: 'banco',
+            category: 'Despesas Fixas',
             receiptUrls: [url],
             createdAt: serverTimestamp()
           });
