@@ -50,14 +50,14 @@ export default function Dashboard() {
 
   // Outros dados
   const [topCustomers, setTopCustomers] = useState<any[]>([]);
-  const [crmData, setCrmData] = useState<{name: string, reason: string, type: 'unpaid' | 'gift' | 'away'}[]>([]);
+  const [crmData, setCrmData] = useState<{ name: string, reason: string, type: 'unpaid' | 'gift' | 'away' }[]>([]);
   const [bills, setBills] = useState<any[]>([]);
-  
+
   // Metas de Vendas
   const [products, setProducts] = useState<any[]>([]);
   const [monthlySales, setMonthlySales] = useState<Record<string, Record<string, number>>>({});
   const [goalMonthOffset, setGoalMonthOffset] = useState(0);
-  
+
   const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
   const formatPerc = (perc: number) => {
@@ -68,12 +68,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    
+
     // 1. Fetch Orders para CRM e "A Receber"
     const qOrders = query(collection(db, 'orders'), where('userId', '==', user.uid));
     const unsubOrders = onSnapshot(qOrders, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-      
+
       let totalUnpaid = 0;
       const clientStats: Record<string, { done: number, unpaid: number, lastDate: Date, total: number, id: string }> = {};
       const salesGoalMap: Record<string, Record<string, number>> = {};
@@ -100,18 +100,18 @@ export default function Dashboard() {
             clientStats[cName].lastDate = dateObj;
           }
         }
-        
+
         // Sales tracking for goals
-        if (status === 'done') {
+        if (status !== 'canceled') {
           const m = dateObj.getMonth();
           const y = dateObj.getFullYear();
           const ym = `${y}-${m}`;
           if (!salesGoalMap[ym]) salesGoalMap[ym] = {};
-          
-          const items = doc.items || [];
-          items.forEach((item: any) => {
-            const itemName = item.name;
-            const qty = Number(item.quantity) || 1;
+
+          const itemsArray = Array.isArray(doc.items) ? doc.items : (doc.itemsDetail || []);
+          itemsArray.forEach((item: any) => {
+            const itemName = item.name?.trim();
+            const qty = Number(item.qty || item.quantity) || 1;
             if (itemName) {
               salesGoalMap[ym][itemName] = (salesGoalMap[ym][itemName] || 0) + qty;
             }
@@ -128,7 +128,7 @@ export default function Dashboard() {
       setTopCustomers(customersList.slice(0, 5));
 
       // CRM Insights
-      const insights: {name: string, reason: string, type: 'unpaid' | 'gift' | 'away'}[] = [];
+      const insights: { name: string, reason: string, type: 'unpaid' | 'gift' | 'away' }[] = [];
       const now = new Date();
       Object.keys(clientStats).forEach(name => {
         const st = clientStats[name];
@@ -153,7 +153,7 @@ export default function Dashboard() {
       const prevDay = subDays(now, 1);
       const prevMonth = subMonths(now, 1);
       const prevYear = subYears(now, 1);
-      
+
       let calcReceita = 0;
       let calcDespesa = 0;
       let calcReceitaPrev = 0;
@@ -164,7 +164,7 @@ export default function Dashboard() {
         const val = Number(t.value) || 0;
         const isIncome = t.type === 'in';
         const dateObj = t.createdAt?.toDate?.() || new Date();
-        
+
         let include = false;
         let includePrev = false;
 
@@ -193,10 +193,10 @@ export default function Dashboard() {
 
         // Gráfico sempre por dia (dentro do período selecionado)
         if (include || period === 'all') {
-           const dayKey = format(dateObj, 'yyyy-MM-dd');
-           if (!dailyMap[dayKey]) dailyMap[dayKey] = { dateObj: startOfDay(dateObj), entradas: 0, saidas: 0 };
-           if (isIncome) dailyMap[dayKey].entradas += val;
-           else dailyMap[dayKey].saidas += val;
+          const dayKey = format(dateObj, 'yyyy-MM-dd');
+          if (!dailyMap[dayKey]) dailyMap[dayKey] = { dateObj: startOfDay(dateObj), entradas: 0, saidas: 0 };
+          if (isIncome) dailyMap[dayKey].entradas += val;
+          else dailyMap[dayKey].saidas += val;
         }
       });
 
@@ -204,8 +204,8 @@ export default function Dashboard() {
       const calcLucroPrev = calcReceitaPrev - calcDespesaPrev;
 
       const getPerc = (cur: number, prev: number) => {
-         if (prev === 0) return cur > 0 ? 100 : 0;
-         return ((cur - prev) / Math.abs(prev)) * 100;
+        if (prev === 0) return cur > 0 ? 100 : 0;
+        return ((cur - prev) / Math.abs(prev)) * 100;
       };
 
       setReceita(calcReceita);
@@ -216,7 +216,7 @@ export default function Dashboard() {
       setLucroPerc(getPerc(calcLucro, calcLucroPrev));
 
       let chartArr = Object.values(dailyMap).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-      
+
       // Filtrar array do grafico se o periodo for muito longo, ou apenas renderizar
       if (period === 'all' && chartArr.length > 30) {
         chartArr = chartArr.slice(-30); // ultimos 30 dias ativos
@@ -292,7 +292,7 @@ export default function Dashboard() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,application/pdf';
-    
+
     input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -303,7 +303,7 @@ export default function Dashboard() {
           if (!url) throw new Error("Falha no upload para o Cloudinary");
 
           await updateDoc(doc(db, 'billsToPay', id), { paid: true });
-          
+
           await addDoc(collection(db, 'cashflow'), {
             userId: user?.uid,
             type: 'out',
@@ -315,12 +315,12 @@ export default function Dashboard() {
             createdAt: serverTimestamp()
           });
           showAlert('Conta paga com sucesso!', 'Sucesso', 'success');
-        } catch(err) {
+        } catch (err) {
           showAlert('Erro ao pagar conta e enviar comprovante', 'Erro', 'error');
         }
       }, 'Confirmar Pagamento');
     };
-    
+
     // Trigger file picker
     input.click();
   };
@@ -330,6 +330,16 @@ export default function Dashboard() {
   const targetGoalYM = `${targetGoalDate.getFullYear()}-${targetGoalDate.getMonth()}`;
   const currentMonthSales = monthlySales[targetGoalYM] || {};
 
+  const getSoldForProduct = (productName: string) => {
+    const base = productName.trim();
+    return Object.entries(currentMonthSales).reduce((acc, [itemName, qty]) => {
+      if (itemName === base || itemName.startsWith(`${base} - `)) {
+        return acc + qty;
+      }
+      return acc;
+    }, 0);
+  };
+
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
@@ -337,12 +347,12 @@ export default function Dashboard() {
           <h2 className="page-title">Visão Geral</h2>
           <p className="page-subtitle">Acompanhe os principais indicadores da pastelaria.</p>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <CalendarIcon size={18} color="var(--text-secondary)" />
-          <select 
+          <select
             className="filter-select"
-            value={period} 
+            value={period}
             onChange={(e) => setPeriod(e.target.value as any)}
           >
             <option value="day">Hoje</option>
@@ -394,7 +404,7 @@ export default function Dashboard() {
                   <XAxis dataKey="name" stroke="#64748b" />
                   <YAxis stroke="#64748b" />
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     itemStyle={{ color: 'var(--text-primary)' }}
                     formatter={(value: any) => formatCurrency(Number(value))}
@@ -424,8 +434,8 @@ export default function Dashboard() {
                   <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--text-primary)' }}>{b.name || b.title}</h4>
                   <p style={{ margin: 0, fontSize: '12px', color: 'var(--danger-color)', fontWeight: 'bold' }}>{formatCurrency(Number(b.amount))}</p>
                 </div>
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
                   style={{ padding: '6px 12px', fontSize: '12px' }}
                   onClick={() => handlePayBill(b.id, b.name || b.title, Number(b.amount))}
                 >
@@ -444,7 +454,7 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
             {crmData.length > 0 ? crmData.map((item, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px' }}>
-                <div style={{ 
+                <div style={{
                   color: item.type === 'unpaid' ? 'var(--danger-color)' : item.type === 'gift' ? 'var(--primary-color)' : 'orange'
                 }}>
                   {item.type === 'unpaid' ? <AlertCircle size={20} /> : item.type === 'gift' ? <Gift size={20} /> : <Clock size={20} />}
@@ -484,13 +494,13 @@ export default function Dashboard() {
                 Meta de Vendas — {format(targetGoalDate, 'MMMM', { locale: ptBR })}
               </h3>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
+                <button
                   onClick={() => setGoalMonthOffset(prev => prev - 1)}
                   style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-primary)' }}
                 >
                   &lt;
                 </button>
-                <button 
+                <button
                   onClick={() => setGoalMonthOffset(prev => prev + 1)}
                   style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-primary)' }}
                 >
@@ -498,33 +508,81 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-            
+
+            {(() => {
+              const activeGoals = products.filter(p => Number(p.monthlyGoal) > 0);
+              if (activeGoals.length === 0) return null;
+              const totalGoal = activeGoals.reduce((acc, p) => acc + Number(p.monthlyGoal), 0);
+              const totalSold = activeGoals.reduce((acc, p) => acc + getSoldForProduct(p.name || ''), 0);
+              const totalPerc = totalGoal > 0 ? Math.round((totalSold / totalGoal) * 100) : 0;
+              return (
+                <div style={{ marginTop: '16px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>Progresso Total</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {totalSold} / {totalGoal} {totalPerc > 100 ? `— ${totalPerc}%` : `(${totalPerc}%)`}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '10px',
+                      backgroundColor: '#334155',
+                      borderRadius: '5px',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${Math.min(totalPerc, 100)}%`,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: '5px',
+                        transition: 'width 0.3s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }} className="transfers-list-scrollable">
               {products.filter(p => Number(p.monthlyGoal) > 0).length > 0 ? (
                 products.filter(p => Number(p.monthlyGoal) > 0).map(p => {
-                  const sold = currentMonthSales[p.name] || 0;
+                  const sold = getSoldForProduct(p.name || '');
                   const goal = Number(p.monthlyGoal);
                   const remaining = Math.max(0, goal - sold);
                   const perc = Math.round((sold / goal) * 100);
-                  
+
                   return (
                     <div key={p.id}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>{p.name}</span>
                         <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                           {sold} / {goal} {perc > 100 ? `— ${perc}%` : ''}
                         </span>
                       </div>
-                      
-                      <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
-                        <div style={{ 
-                          height: '100%', 
-                          width: `${Math.min(perc, 100)}%`, 
-                          backgroundColor: perc >= 100 ? 'var(--success-color)' : 'var(--primary-color)',
-                          transition: 'width 0.3s ease'
-                        }} />
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '7px',
+                          backgroundColor: '#334155',
+                          borderRadius: '5px',
+                          overflow: 'hidden',
+                          marginBottom: '5px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${Math.min(perc, 100)}%`,
+                            backgroundColor: '#3b82f6',
+                            borderRadius: '5px',
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
                       </div>
-                      
+
                       <div style={{ fontSize: '12px', color: perc >= 100 ? 'var(--success-color)' : 'var(--text-secondary)', fontWeight: perc >= 100 ? 600 : 500 }}>
                         {perc >= 100 ? 'Meta atingida ✓' : `Restam ${remaining}`}
                       </div>
