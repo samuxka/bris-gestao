@@ -21,6 +21,7 @@ export default function Produtos() {
   const [flavors, setFlavors] = useState('');
   const [description, setDescription] = useState('');
   const [ingredients, setIngredients] = useState<{ id: string, name: string, cost: number }[]>([]);
+  const [monthlyGoal, setMonthlyGoal] = useState('');
   const [newIngredientName, setNewIngredientName] = useState('');
   const [newIngredientCost, setNewIngredientCost] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +46,7 @@ export default function Produtos() {
       setFlavors(product.flavors ? product.flavors.join(', ') : '');
       setDescription(product.description || '');
       setIngredients(product.ingredients?.map((i: any, idx: number) => ({ id: String(idx), name: i.name, cost: i.cost })) || []);
+      setMonthlyGoal(product.monthlyGoal ? String(product.monthlyGoal) : '');
     } else {
       setEditingId(null);
       setName('');
@@ -52,6 +54,7 @@ export default function Produtos() {
       setFlavors('');
       setDescription('');
       setIngredients([]);
+      setMonthlyGoal('');
     }
     setNewIngredientName('');
     setNewIngredientCost('');
@@ -67,6 +70,7 @@ export default function Produtos() {
     const parsedFlavors = flavors.split(',').map(f => f.trim()).filter(f => f);
     const parsedIngredients = ingredients.map(i => ({ name: i.name.trim(), cost: i.cost }));
     const totalCost = parsedIngredients.reduce((acc, curr) => acc + curr.cost, 0);
+    const parsedMonthlyGoal = parseInt(monthlyGoal, 10) || 0;
 
     try {
       if (editingId) {
@@ -77,6 +81,7 @@ export default function Produtos() {
           description: description.trim(),
           ingredients: parsedIngredients,
           cost: totalCost,
+          monthlyGoal: parsedMonthlyGoal,
           updatedAt: serverTimestamp()
         });
       } else {
@@ -88,6 +93,7 @@ export default function Produtos() {
           description: description.trim(),
           ingredients: parsedIngredients,
           cost: totalCost,
+          monthlyGoal: parsedMonthlyGoal,
           createdAt: serverTimestamp()
         });
       }
@@ -251,6 +257,17 @@ export default function Produtos() {
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
                   placeholder="Ex: 2,50"
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Meta de Vendas por Mês (Opcional)</label>
+                <input 
+                  type="number"
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                  value={monthlyGoal}
+                  onChange={(e) => setMonthlyGoal(e.target.value)}
+                  placeholder="Ex: 500"
                 />
               </div>
 

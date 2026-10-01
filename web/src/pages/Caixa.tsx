@@ -37,13 +37,13 @@ export default function Caixa() {
 
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [monthFilter, setMonthFilter] = useState('all');
-  
+
   const [expenseLimit, setExpenseLimit] = useState(2000);
 
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [bills, setBills] = useState<any[]>([]);
-  
+
   // Bills State
   const [showAddBillModal, setShowAddBillModal] = useState(false);
   const [billName, setBillName] = useState('');
@@ -115,7 +115,7 @@ export default function Caixa() {
         const acc = t.account || 'banco';
         const isIncome = t.type === 'in';
         const date = t.createdAt?.toDate?.() || new Date();
-        
+
         if (t.type === 'transfer') {
           if (t.transferDirection === 'cofre_to_banco') {
             bAtual += val;
@@ -141,7 +141,7 @@ export default function Caixa() {
       setDespesasMes(despesasAtual);
       setLoading(false);
     });
-    
+
     const qBills = query(collection(db, 'billsToPay'), where('userId', '==', user.uid));
     const unsubBills = onSnapshot(qBills, (snap) => {
       const b = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -167,7 +167,7 @@ export default function Caixa() {
   const filteredTransfers = transfers.filter(t => {
     const date = t.createdAt?.toDate?.() || new Date();
     const mStr = format(date, 'MM/yyyy');
-    
+
     if (categoryFilter !== 'all' && (t.category || 'Outros') !== categoryFilter) return false;
     if (monthFilter !== 'all' && mStr !== monthFilter) return false;
     return true;
@@ -369,16 +369,16 @@ export default function Caixa() {
   };
 
   const dreTransfers = transfers.filter(t => {
-    if (t.type === 'transfer') return false; 
+    if (t.type === 'transfer') return false;
     const d = t.createdAt?.toDate?.();
     if (!d) return false;
-    
+
     const start = dreStartDate ? new Date(dreStartDate + 'T00:00:00') : null;
     const end = dreEndDate ? new Date(dreEndDate + 'T23:59:59') : null;
-    
+
     if (start && d < start) return false;
     if (end && d > end) return false;
-    
+
     return true;
   });
 
@@ -400,20 +400,20 @@ export default function Caixa() {
     const val = Number(t.value) || 0;
     const cat = t.category;
     if (t.type === 'in') {
-      if (cat === 'Venda' || cat === 'Vendas' || t.orderId || (t.description && t.description.startsWith('Pagamento - '))) { 
-        receitaFaturamento += val; 
-        dreTransactions.receitaFaturamento.push(t); 
+      if (cat === 'Venda' || cat === 'Vendas' || t.orderId || (t.description && t.description.startsWith('Pagamento - '))) {
+        receitaFaturamento += val;
+        dreTransactions.receitaFaturamento.push(t);
       }
-      else { 
-        movNaoOperacionais += val; 
-        dreTransactions.movNaoOperacionais.push(t); 
+      else {
+        movNaoOperacionais += val;
+        dreTransactions.movNaoOperacionais.push(t);
       }
     } else if (t.type === 'out') {
       if (cat === 'Material' || cat === 'Impostos') { custoVariavel += val; dreTransactions.custoVariavel.push(t); }
       else if (cat === 'Equipamento') { investimentos += val; dreTransactions.investimentos.push(t); }
-      else if (cat === 'Retirada Pessoal' || cat === 'Ajuste de Caixa') { 
-        movNaoOperacionais -= val; 
-        dreTransactions.movNaoOperacionais.push(t); 
+      else if (cat === 'Retirada Pessoal' || cat === 'Ajuste de Caixa') {
+        movNaoOperacionais -= val;
+        dreTransactions.movNaoOperacionais.push(t);
       }
       else { despesasFixas += val; dreTransactions.despesasFixas.push(t); }
     }
@@ -470,7 +470,7 @@ export default function Caixa() {
           </tr>
         )}
         {isExpanded && transactions.length === 0 && (
-           <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+          <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
             <td colSpan={2} style={{ padding: '8px 12px 12px 42px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               Nenhuma movimentação neste período.
             </td>
@@ -503,7 +503,7 @@ export default function Caixa() {
           </button>
         </div>
       </div>
-      
+
       <div className="caixa-grid">
         <StatCard title="Banco" value={formatCurrency(bancoAtual)} />
         <StatCard title="Físico (Cofre)" value={formatCurrency(cofreAtual)} />
@@ -517,14 +517,14 @@ export default function Caixa() {
             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
               Despesas este mês: <strong>{formatCurrency(despesasMes)}</strong>
             </p>
-            <p 
+            <p
               onClick={handleSetLimit}
               style={{ fontSize: '0.875rem', color: 'var(--accent-color)', textAlign: 'center', cursor: 'pointer', marginTop: '8px', fontWeight: 500 }}
               title="Clique para alterar"
             >
               Limite: {formatCurrency(expenseLimit)} ✎
             </p>
-            
+
             <div className="thermometer-container" style={{ flex: 1, marginTop: '16px' }}>
               <div className="thermometer-glass">
                 <div className="thermometer-mercury" style={{ height: `${thermoPercent}%`, backgroundColor: thermoPercent >= 100 ? '#b91c1c' : 'var(--danger-color)' }}></div>
@@ -554,7 +554,7 @@ export default function Caixa() {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value: any) => formatCurrency(Number(value))}
                       contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                     />
@@ -571,7 +571,7 @@ export default function Caixa() {
         <div className="transfers-full-card-wrapper">
           <div className="card transfers-full-card">
             <h3 className="card-title">Histórico de Transferências</h3>
-            
+
             <div className="filters-row">
               <select className="filter-select" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
                 <option value="all">Todos os meses</option>
@@ -604,7 +604,7 @@ export default function Caixa() {
                 const dateObj = t.createdAt?.toDate?.();
                 const dateStr = dateObj ? format(dateObj, "dd/MM/yyyy 'às' HH:mm") : 'Sem data';
                 const isBankMovement = t.account === 'banco' || t.type === 'transfer';
-                
+
                 return (
                   <div key={t.id} className="transfer-item">
                     <div className="transfer-left">
@@ -711,22 +711,22 @@ export default function Caixa() {
             <h3 className="card-title" style={{ margin: 0 }}>Demonstração do Resultado (DRE)</h3>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <label style={{ fontSize: '0.875rem' }}>De:</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="filter-select"
                 value={dreStartDate}
                 onChange={e => setDreStartDate(e.target.value)}
               />
               <label style={{ fontSize: '0.875rem' }}>Até:</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="filter-select"
                 value={dreEndDate}
                 onChange={e => setDreEndDate(e.target.value)}
               />
             </div>
           </div>
-          
+
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <tbody>
@@ -783,22 +783,22 @@ export default function Caixa() {
             <h3 className="card-title">Nova Transferência</h3>
             <form onSubmit={handleAddTransfer}>
               <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setAddType('in'); setAddCategory(INCOME_CATEGORIES[0]); }}
                   style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: addType === 'in' ? 'var(--success-color)' : 'var(--bg-color)', color: addType === 'in' ? '#fff' : 'var(--text-primary)', cursor: 'pointer' }}
                 >
                   Entrada
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setAddType('out'); setAddCategory(EXPENSE_CATEGORIES[0]); }}
                   style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: addType === 'out' ? 'var(--danger-color)' : 'var(--bg-color)', color: addType === 'out' ? '#fff' : 'var(--text-primary)', cursor: 'pointer' }}
                 >
                   Saída
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setAddType('transfer'); setAddCategory('Transferência Interna'); }}
                   style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: addType === 'transfer' ? 'var(--accent-color)' : 'var(--bg-color)', color: addType === 'transfer' ? '#fff' : 'var(--text-primary)', cursor: 'pointer' }}
                 >
@@ -809,7 +809,7 @@ export default function Caixa() {
               {addType !== 'transfer' && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Conta / Origem</label>
-                  <select 
+                  <select
                     className="filter-select"
                     style={{ width: '100%', boxSizing: 'border-box' }}
                     value={addAccount}
@@ -824,7 +824,7 @@ export default function Caixa() {
               {addType === 'transfer' && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Direção</label>
-                  <select 
+                  <select
                     className="filter-select"
                     style={{ width: '100%', boxSizing: 'border-box' }}
                     value={transferDirection}
@@ -838,10 +838,10 @@ export default function Caixa() {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Descrição</label>
-                <input 
+                <input
                   type="text"
                   required
-                  className="filter-select" 
+                  className="filter-select"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                   value={addDesc}
                   onChange={(e) => setAddDesc(e.target.value)}
@@ -851,11 +851,11 @@ export default function Caixa() {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Valor (€)</label>
-                <input 
+                <input
                   type="number"
                   step="0.01"
                   required
-                  className="filter-select" 
+                  className="filter-select"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                   value={addValue}
                   onChange={(e) => setAddValue(e.target.value)}
@@ -866,7 +866,7 @@ export default function Caixa() {
               {addType !== 'transfer' && (
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Categoria</label>
-                  <select 
+                  <select
                     className="filter-select"
                     style={{ width: '100%', boxSizing: 'border-box' }}
                     value={addCategory}
@@ -899,7 +899,7 @@ export default function Caixa() {
             <form onSubmit={handleAddBillSubmit}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Nome da Conta</label>
-                <input 
+                <input
                   type="text" required
                   className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                   value={billName} onChange={(e) => setBillName(e.target.value)}
@@ -908,7 +908,7 @@ export default function Caixa() {
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Valor (€)</label>
-                <input 
+                <input
                   type="number" step="0.01" required
                   className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                   value={billAmount} onChange={(e) => setBillAmount(e.target.value)}
@@ -917,14 +917,14 @@ export default function Caixa() {
               </div>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Data de Vencimento</label>
-                <input 
+                <input
                   type="date" required
                   className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                   value={billDueDate} onChange={(e) => setBillDueDate(e.target.value)}
                 />
               </div>
               <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input 
+                <input
                   type="checkbox" id="billRecurring"
                   checked={billRecurring} onChange={(e) => setBillRecurring(e.target.checked)}
                 />
@@ -933,7 +933,7 @@ export default function Caixa() {
               {billRecurring && (
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Frequência</label>
-                  <select 
+                  <select
                     className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                     value={billFrequency} onChange={(e) => setBillFrequency(e.target.value)}
                   >
@@ -967,7 +967,7 @@ export default function Caixa() {
             <form onSubmit={handlePayBillSubmit}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Forma de Pagamento</label>
-                <select 
+                <select
                   className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                   value={payMethod} onChange={(e) => setPayMethod(e.target.value as 'dinheiro' | 'transferencia')}
                 >
@@ -977,7 +977,7 @@ export default function Caixa() {
               </div>
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Comprovante (Obrigatório)</label>
-                <input 
+                <input
                   type="file" accept="image/*,.pdf" required
                   className="filter-select" style={{ width: '100%', boxSizing: 'border-box' }}
                   onChange={(e) => setPayReceipt(e.target.files ? e.target.files[0] : null)}
@@ -1001,10 +1001,10 @@ export default function Caixa() {
             <form onSubmit={handleAddCaixinha}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Nome do Objetivo</label>
-                <input 
+                <input
                   type="text"
                   required
-                  className="filter-select" 
+                  className="filter-select"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                   value={caixinhaName}
                   onChange={(e) => setCaixinhaName(e.target.value)}
@@ -1014,11 +1014,11 @@ export default function Caixa() {
 
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Meta de Valor (€)</label>
-                <input 
+                <input
                   type="number"
                   step="0.01"
                   required
-                  className="filter-select" 
+                  className="filter-select"
                   style={{ width: '100%', boxSizing: 'border-box' }}
                   value={caixinhaTarget}
                   onChange={(e) => setCaixinhaTarget(e.target.value)}

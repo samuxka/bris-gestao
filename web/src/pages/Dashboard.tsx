@@ -53,6 +53,11 @@ export default function Dashboard() {
   const [crmData, setCrmData] = useState<{name: string, reason: string, type: 'unpaid' | 'gift' | 'away'}[]>([]);
   const [bills, setBills] = useState<any[]>([]);
   
+  // Metas de Vendas
+  const [products, setProducts] = useState<any[]>([]);
+  const [monthlySales, setMonthlySales] = useState<Record<string, Record<string, number>>>({});
+  const [goalMonthOffset, setGoalMonthOffset] = useState(0);
+  
   const formatCurrency = (val: number) => `€ ${val.toFixed(2).replace('.', ',')}`;
 
   const formatPerc = (perc: number) => {
@@ -71,6 +76,7 @@ export default function Dashboard() {
       
       let totalUnpaid = 0;
       const clientStats: Record<string, { done: number, unpaid: number, lastDate: Date, total: number, id: string }> = {};
+      const salesGoalMap: Record<string, Record<string, number>> = {};
 
       docs.forEach(doc => {
         const status = doc.status;
@@ -94,9 +100,27 @@ export default function Dashboard() {
             clientStats[cName].lastDate = dateObj;
           }
         }
+        
+        // Sales tracking for goals
+        if (status === 'done') {
+          const m = dateObj.getMonth();
+          const y = dateObj.getFullYear();
+          const ym = `${y}-${m}`;
+          if (!salesGoalMap[ym]) salesGoalMap[ym] = {};
+          
+          const items = doc.items || [];
+          items.forEach((item: any) => {
+            const itemName = item.name;
+            const qty = Number(item.quantity) || 1;
+            if (itemName) {
+              salesGoalMap[ym][itemName] = (salesGoalMap[ym][itemName] || 0) + qty;
+            }
+          });
+        }
       });
 
       setAReceber(totalUnpaid);
+      setMonthlySales(salesGoalMap);
 
       // Top Customers
       const customersList = Object.keys(clientStats).map(k => ({ name: k, ...clientStats[k] }));
@@ -226,10 +250,17 @@ export default function Dashboard() {
       setBills(b);
     });
 
+    // 4. Fetch Products for goals
+    const qProducts = query(collection(db, 'products'), where('userId', '==', user.uid));
+    const unsubProducts = onSnapshot(qProducts, (snap) => {
+      setProducts(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+    });
+
     return () => {
       unsubOrders();
       unsubCashflow();
       unsubBills();
+      unsubProducts();
     };
   }, [user, period]);
 
@@ -293,6 +324,11 @@ export default function Dashboard() {
     // Trigger file picker
     input.click();
   };
+
+  const targetGoalDate = new Date();
+  targetGoalDate.setMonth(targetGoalDate.getMonth() + goalMonthOffset);
+  const targetGoalYM = `${targetGoalDate.getFullYear()}-${targetGoalDate.getMonth()}`;
+  const currentMonthSales = monthlySales[targetGoalYM] || {};
 
   return (
     <div>
@@ -424,20 +460,81 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Top Customers (Reduzido para não quebrar a grid, pois ocupava span 4 no layout original, agora podemos colocar no final) */}
-        <div className="card" style={{ gridColumn: 'span 4' }}>
-          <h3 className="card-title">Top Clientes</h3>
-          <div className="customers-list">
-            {topCustomers.length > 0 ? topCustomers.map((c, idx) => (
-              <div key={idx} className="customer-item" style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                <span className="customer-name" style={{ color: idx < 3 ? 'var(--primary-color)' : 'var(--text-primary)', fontWeight: idx < 3 ? 'bold' : 'normal' }}>
-                  {idx + 1}. {c.name}
-                </span>
-                <span className="customer-total">{formatCurrency(c.total)}</span>
+        {/* Split container for Top Clientes and Metas */}
+        <div style={{ gridColumn: 'span 4', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="card" style={{ flex: 1 }}>
+            <h3 className="card-title">Top Clientes</h3>
+            <div className="customers-list">
+              {topCustomers.length > 0 ? topCustomers.map((c, idx) => (
+                <div key={idx} className="customer-item" style={{ padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="customer-name" style={{ color: idx < 3 ? 'var(--primary-color)' : 'var(--text-primary)', fontWeight: idx < 3 ? 'bold' : 'normal' }}>
+                    {idx + 1}. {c.name}
+                  </span>
+                  <span className="customer-total">{formatCurrency(c.total)}</span>
+                </div>
+              )) : (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center' }}>Nenhum cliente com pedidos finalizados.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="card" style={{ flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 className="card-title" style={{ textTransform: 'uppercase', fontSize: '13px', letterSpacing: '0.5px', margin: 0 }}>
+                Meta de Vendas — {format(targetGoalDate, 'MMMM', { locale: ptBR })}
+              </h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => setGoalMonthOffset(prev => prev - 1)}
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  &lt;
+                </button>
+                <button 
+                  onClick={() => setGoalMonthOffset(prev => prev + 1)}
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                >
+                  &gt;
+                </button>
               </div>
-            )) : (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center' }}>Nenhum cliente com pedidos finalizados.</p>
-            )}
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }} className="transfers-list-scrollable">
+              {products.filter(p => Number(p.monthlyGoal) > 0).length > 0 ? (
+                products.filter(p => Number(p.monthlyGoal) > 0).map(p => {
+                  const sold = currentMonthSales[p.name] || 0;
+                  const goal = Number(p.monthlyGoal);
+                  const remaining = Math.max(0, goal - sold);
+                  const perc = Math.round((sold / goal) * 100);
+                  
+                  return (
+                    <div key={p.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>{p.name}</span>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                          {sold} / {goal} {perc > 100 ? `— ${perc}%` : ''}
+                        </span>
+                      </div>
+                      
+                      <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
+                        <div style={{ 
+                          height: '100%', 
+                          width: `${Math.min(perc, 100)}%`, 
+                          backgroundColor: perc >= 100 ? 'var(--success-color)' : 'var(--primary-color)',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: perc >= 100 ? 'var(--success-color)' : 'var(--text-secondary)', fontWeight: perc >= 100 ? 600 : 500 }}>
+                        {perc >= 100 ? 'Meta atingida ✓' : `Restam ${remaining}`}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', margin: '20px 0' }}>Nenhuma meta definida nos produtos.</p>
+              )}
+            </div>
           </div>
         </div>
 
