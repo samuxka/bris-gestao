@@ -192,18 +192,19 @@ export default function Cupons() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content card" style={{ maxWidth: '400px', margin: '20px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="card-title" style={{ marginTop: 0, marginBottom: '20px' }}>
               {editingId ? 'Editar Cupom' : 'Novo Cupom'}
             </h3>
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               <div>
-                <label className="form-label">Código do Cupom</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Código do Cupom</label>
                 <input 
                   type="text" 
-                  className="form-input" 
+                  className="filter-select" 
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                   value={code}
                   onChange={e => setCode(e.target.value.toUpperCase())}
                   placeholder="Ex: PROMO10"
@@ -213,9 +214,10 @@ export default function Cupons() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="form-label">Tipo</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Tipo</label>
                   <select 
-                    className="form-input" 
+                    className="filter-select" 
+                    style={{ width: '100%', boxSizing: 'border-box' }}
                     value={discountType}
                     onChange={e => setDiscountType(e.target.value)}
                   >
@@ -224,10 +226,11 @@ export default function Cupons() {
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Valor</label>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Valor</label>
                   <input 
                     type="text" 
-                    className="form-input" 
+                    className="filter-select" 
+                    style={{ width: '100%', boxSizing: 'border-box' }}
                     value={discountValue}
                     onChange={e => setDiscountValue(e.target.value)}
                     placeholder={discountType === 'percent' ? "Ex: 10" : "Ex: 5,00"}
@@ -237,7 +240,7 @@ export default function Cupons() {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.875rem' }}>
                   <input 
                     type="checkbox" 
                     checked={isActive}

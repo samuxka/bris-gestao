@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Calendar, Users, Package, LogOut, Moon, Sun, PaperBag, Ticket, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Wallet, Calendar, Users, Package, LogOut, Moon, Sun, PaperBag, Ticket, ChevronLeft, ChevronRight, Calculator } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Caixa from './pages/Caixa';
 import Calendario from './pages/Calendario';
@@ -10,6 +10,7 @@ import Estoque from './pages/Estoque';
 import Produtos from './pages/Produtos';
 import Cupons from './pages/Cupons';
 import Anexos from './pages/Anexos';
+import Calculadora from './pages/Calculadora';
 import Login from './pages/Login';
 import { useAuth } from './context/AuthContext';
 
@@ -56,6 +57,10 @@ const Sidebar = ({ onLogout, isDarkMode, onToggleTheme, isCollapsed, onToggleCol
       <NavLink to="/cupons" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
         <Ticket size={20} style={{ minWidth: '20px' }} />
         <span>Cupons</span>
+      </NavLink>
+      <NavLink to="/calculadora" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <Calculator size={20} style={{ minWidth: '20px' }} />
+        <span>Calculadora</span>
       </NavLink>
     </nav>
     <div style={{ padding: '0 12px', marginTop: 'auto', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -125,6 +130,7 @@ function App() {
             <Route path="/produtos" element={<Produtos />} />
             <Route path="/cupons" element={<Cupons />} />
             <Route path="/anexos" element={<Anexos />} />
+            <Route path="/calculadora" element={<Calculadora />} />
           </Routes>
         </main>
       </div>

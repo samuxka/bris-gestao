@@ -174,17 +174,21 @@ export default function Estoque() {
     if (newQty !== currentQty) {
       try {
         if (user?.uid) {
-          await addDoc(collection(db, 'inventory_movements'), {
-            userId: user.uid,
-            itemId: id,
-            itemName,
-            type: 'CORRECTION',
-            quantityChange: Math.abs(newQty - currentQty),
-            previousQuantity: currentQty,
-            newQuantity: newQty,
-            observation: 'Correção manual do estoque',
-            createdAt: serverTimestamp()
-          });
+          try {
+            await addDoc(collection(db, 'inventory_movements'), {
+              userId: user.uid,
+              itemId: id,
+              itemName,
+              type: 'CORRECTION',
+              quantityChange: Math.abs(newQty - currentQty),
+              previousQuantity: currentQty,
+              newQuantity: newQty,
+              observation: 'Correção manual do estoque',
+              createdAt: serverTimestamp()
+            });
+          } catch (movementErr) {
+            console.warn('Falha no log.', movementErr);
+          }
         }
         await updateDoc(doc(db, 'inventory', id), {
           quantity: newQty,
@@ -224,17 +228,21 @@ export default function Estoque() {
     }
 
     try {
-      await addDoc(collection(db, 'inventory_movements'), {
-        userId: user.uid,
-        itemId: movementItem.id,
-        itemName: movementItem.name,
-        type: movementType,
-        quantityChange: parsedQty,
-        previousQuantity: currentQty,
-        newQuantity: newQty,
-        observation: movementObservation.trim(),
-        createdAt: serverTimestamp()
-      });
+      try {
+        await addDoc(collection(db, 'inventory_movements'), {
+          userId: user.uid,
+          itemId: movementItem.id,
+          itemName: movementItem.name,
+          type: movementType,
+          quantityChange: parsedQty,
+          previousQuantity: currentQty,
+          newQuantity: newQty,
+          observation: movementObservation.trim(),
+          createdAt: serverTimestamp()
+        });
+      } catch (movementErr) {
+        console.warn('Não foi possível salvar o histórico de movimentação. Verifique as regras do Firestore para inventory_movements.', movementErr);
+      }
 
       await updateDoc(doc(db, 'inventory', movementItem.id), {
         quantity: newQty,

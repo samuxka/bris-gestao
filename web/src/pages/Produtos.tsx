@@ -19,6 +19,7 @@ export default function Produtos() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [flavors, setFlavors] = useState('');
+  const [complements, setComplements] = useState('');
   const [description, setDescription] = useState('');
   const [ingredients, setIngredients] = useState<{ id: string, name: string, cost: number }[]>([]);
   const [monthlyGoal, setMonthlyGoal] = useState('');
@@ -44,6 +45,7 @@ export default function Produtos() {
       setName(product.name || '');
       setPrice(String(product.price || '0').replace('.', ','));
       setFlavors(product.flavors ? product.flavors.join(', ') : '');
+      setComplements(product.complements ? product.complements.join(', ') : '');
       setDescription(product.description || '');
       setIngredients(product.ingredients?.map((i: any, idx: number) => ({ id: String(idx), name: i.name, cost: i.cost })) || []);
       setMonthlyGoal(product.monthlyGoal ? String(product.monthlyGoal) : '');
@@ -52,6 +54,7 @@ export default function Produtos() {
       setName('');
       setPrice('');
       setFlavors('');
+      setComplements('');
       setDescription('');
       setIngredients([]);
       setMonthlyGoal('');
@@ -68,6 +71,7 @@ export default function Produtos() {
     setIsSubmitting(true);
     const parsedPrice = parseFloat(price.replace(',', '.')) || 0;
     const parsedFlavors = flavors.split(',').map(f => f.trim()).filter(f => f);
+    const parsedComplements = complements.split(',').map(c => c.trim()).filter(c => c);
     const parsedIngredients = ingredients.map(i => ({ name: i.name.trim(), cost: i.cost }));
     const totalCost = parsedIngredients.reduce((acc, curr) => acc + curr.cost, 0);
     const parsedMonthlyGoal = parseInt(monthlyGoal, 10) || 0;
@@ -78,6 +82,7 @@ export default function Produtos() {
           name: name.trim(),
           price: parsedPrice,
           flavors: parsedFlavors,
+          complements: parsedComplements,
           description: description.trim(),
           ingredients: parsedIngredients,
           cost: totalCost,
@@ -90,6 +95,7 @@ export default function Produtos() {
           name: name.trim(),
           price: parsedPrice,
           flavors: parsedFlavors,
+          complements: parsedComplements,
           description: description.trim(),
           ingredients: parsedIngredients,
           cost: totalCost,
@@ -326,6 +332,17 @@ export default function Produtos() {
                   value={flavors}
                   onChange={(e) => setFlavors(e.target.value)}
                   placeholder="Ex: Frango, Carne, Queijo (separe por vírgulas)"
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.875rem' }}>Complementos (opcional)</label>
+                <input 
+                  type="text"
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }}
+                  value={complements}
+                  onChange={(e) => setComplements(e.target.value)}
+                  placeholder="Ex: Granulado, Leite Condensado (separe por vírgulas)"
                 />
               </div>
 

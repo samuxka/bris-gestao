@@ -45,6 +45,7 @@ export default function AddOrder() {
   const [products, setProducts] = useState<any[]>([]);
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
   const [selectingFlavorsFor, setSelectingFlavorsFor] = useState<{ index: number, product: any } | null>(null);
+  const [selectingComplementsFor, setSelectingComplementsFor] = useState<{ index: number, product: any, baseName: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -301,7 +302,7 @@ export default function AddOrder() {
             </View>
 
             {/* Products Autocomplete */}
-            {activeItemIndex === index && item.name.trim().length > 0 && !selectingFlavorsFor && (
+            {activeItemIndex === index && item.name.trim().length > 0 && !selectingFlavorsFor && !selectingComplementsFor && (
               <View style={[styles.autocompleteContainer, { marginTop: 0 }]}>
                 {products
                   .filter(p => (p.name || '').toLowerCase().includes(item.name.toLowerCase()))
@@ -313,6 +314,8 @@ export default function AddOrder() {
                       onPress={() => {
                         if (p.flavors && p.flavors.length > 0) {
                           setSelectingFlavorsFor({ index, product: p });
+                        } else if (p.complements && p.complements.length > 0) {
+                          setSelectingComplementsFor({ index, product: p, baseName: p.name });
                         } else {
                           updateItem(index, 'name', p.name);
                           updateItem(index, 'price', String(p.price || '0').replace('.', ','));
@@ -342,15 +345,55 @@ export default function AddOrder() {
                     key={f}
                     style={styles.autocompleteItem}
                     onPress={() => {
-                      updateItem(index, 'name', `${selectingFlavorsFor.product.name} - ${f}`);
-                      updateItem(index, 'price', String(selectingFlavorsFor.product.price || '0').replace('.', ','));
-                      setActiveItemIndex(null);
-                      setSelectingFlavorsFor(null);
+                      const newName = `${selectingFlavorsFor.product.name} - ${f}`;
+                      if (selectingFlavorsFor.product.complements && selectingFlavorsFor.product.complements.length > 0) {
+                        setSelectingComplementsFor({ index, product: selectingFlavorsFor.product, baseName: newName });
+                        setSelectingFlavorsFor(null);
+                      } else {
+                        updateItem(index, 'name', newName);
+                        updateItem(index, 'price', String(selectingFlavorsFor.product.price || '0').replace('.', ','));
+                        setActiveItemIndex(null);
+                        setSelectingFlavorsFor(null);
+                      }
                     }}
                   >
                     <Text style={styles.autocompleteText}>{f}</Text>
                   </TouchableOpacity>
                 ))}
+              </View>
+            )}
+
+            {/* Complement Selection */}
+            {selectingComplementsFor?.index === index && (
+              <View style={[styles.autocompleteContainer, { marginTop: 0, paddingBottom: spacing.xs }]}>
+                <Text style={{ padding: spacing.m, fontFamily: typography.fontFamilyBold, color: colors.textSecondary, fontSize: 13, textTransform: 'uppercase' }}>
+                  Escolha o Complemento
+                </Text>
+                {selectingComplementsFor.product.complements.map((c: string) => (
+                  <TouchableOpacity 
+                    key={c}
+                    style={styles.autocompleteItem}
+                    onPress={() => {
+                      updateItem(index, 'name', `${selectingComplementsFor.baseName} c/ ${c}`);
+                      updateItem(index, 'price', String(selectingComplementsFor.product.price || '0').replace('.', ','));
+                      setActiveItemIndex(null);
+                      setSelectingComplementsFor(null);
+                    }}
+                  >
+                    <Text style={styles.autocompleteText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity 
+                  style={styles.autocompleteItem}
+                  onPress={() => {
+                    updateItem(index, 'name', selectingComplementsFor.baseName);
+                    updateItem(index, 'price', String(selectingComplementsFor.product.price || '0').replace('.', ','));
+                    setActiveItemIndex(null);
+                    setSelectingComplementsFor(null);
+                  }}
+                >
+                  <Text style={[styles.autocompleteText, { color: colors.textSecondary }]}>Nenhum / Continuar</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>

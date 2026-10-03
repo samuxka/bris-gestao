@@ -67,7 +67,7 @@ export default function InventarioIndex() {
       <View style={styles.cardContent}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemDetails}>
-          {item.quantity}{item.unit} por {item.price.toFixed(2)}€
+          {item.quantity}{item.unit} por {Number(item.price || 0).toFixed(2)}€
         </Text>
       </View>
       <View style={styles.actions}>
